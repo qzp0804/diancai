@@ -388,49 +388,124 @@
     </div>
 
     <script>
-        // 默认数据
-        const defaultCategories = ['素炒', '炒菜', '炖菜', '面食', '小吃', '干煸类', '凉菜', '粥', '砂锅煲', '蒸菜'];
-        const defaultDishes = [
-            { id: 1, name: '红烧牛排骨', category: '炖菜', image: '', sales: 3 },
-            { id: 2, name: '糖醋排骨', category: '炖菜', image: '', sales: 4 },
-            { id: 3, name: '红烧排骨', category: '炖菜', image: '', sales: 5 },
-            { id: 4, name: '鹌鹑蛋红烧肉', category: '炖菜', image: '', sales: 2 },
-            { id: 5, name: '土豆烧排骨', category: '炖菜', image: '', sales: 6 },
-            { id: 6, name: '皮蛋瘦肉粥', category: '粥', image: '', sales: 5 },
-            { id: 7, name: '蒜蓉粉丝娃娃菜虾滑煲', category: '砂锅煲', image: '', sales: 5 },
-            { id: 8, name: '腊味煲仔饭', category: '砂锅煲', image: '', sales: 8 },
-            { id: 9, name: '蒸蛋羹', category: '蒸菜', image: '', sales: 10 },
-            { id: 10, name: '番茄炒蛋', category: '素炒', image: '', sales: 15 },
-            { id: 11, name: '宫保鸡丁', category: '炒菜', image: '', sales: 7 },
-            { id: 12, name: '酸辣土豆丝', category: '素炒', image: '', sales: 9 },
-        ];
+        // ========== 配置 ==========
+        // ⚠️ 部署前需要设置 GitHub Token（在 GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)）
+        // 权限勾选 repo（或者只勾选 public_repo，如果仓库是公开的）
+        const GITHUB_OWNER = 'qzp0804';
+        const GITHUB_REPO = 'diancai';
+        const DATA_FILE = 'data.json';
+        let GITHUB_TOKEN = localStorage.getItem('github_token') || '';
 
-        // 数据管理
-        function loadData() {
-            let categories = JSON.parse(localStorage.getItem('categories') || 'null');
-            let dishes = JSON.parse(localStorage.getItem('dishes') || 'null');
-            if (!categories) {
-                categories = [...defaultCategories];
-                localStorage.setItem('categories', JSON.stringify(categories));
+        // 如果没设置 token，提示设置
+        function ensureToken() {
+            if (!GITHUB_TOKEN) {
+                const token = prompt('请设置 GitHub Personal Access Token：\n\n（在 GitHub Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic)）\n勾选 repo 权限即可\n\nToken 会保存在你的浏览器本地存储中');
+                if (token) {
+                    GITHUB_TOKEN = token.trim();
+                    localStorage.setItem('github_token', GITHUB_TOKEN);
+                }
             }
-            if (!dishes) {
-                dishes = [...defaultDishes];
-                localStorage.setItem('dishes', JSON.stringify(dishes));
-            }
-            return { categories, dishes };
+            return !!GITHUB_TOKEN;
         }
 
-        function saveData(key, data) {
-            localStorage.setItem(key, JSON.stringify(data));
+        // ========== GitHub API 读写 ==========
+        async function loadFromGitHub() {
+            try {
+                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${DATA_FILE}`;
+                const resp = await fetch(url, {
+                    headers: GITHUB_TOKEN ? { 'Authorization': `token ${GITHUB_TOKEN}` } : {}
+                });
+                if (!resp.ok) throw new Error('加载失败');
+                const data = await resp.json();
+                const content = JSON.parse(atob(data.content));
+                return { data, sha: data.sha, content };
+            } catch (e) {
+                console.error('从 GitHub 加载数据失败:', e);
+                return null;
+            }
         }
 
-        let { categories, dishes } = loadData();
+        async function saveToGitHub(content) {
+            if (!ensureToken()) {
+                alert('需要设置 GitHub Token 才能保存数据！');
+                return false;
+            }
+            try {
+                // 先获取当前文件 sha
+                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${DATA_FILE}`;
+                const getResp = await fetch(url, {
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                });
+                if (!getResp.ok) throw new Error('获取文件信息失败');
+                const fileInfo = await getResp.json();
+                const sha = fileInfo.sha;
+
+                // 更新文件
+                const contentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(content, null, 2))));
+                const putResp = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: '更新菜品数据',
+                        content: contentBase64,
+                        sha: sha
+                    })
+                });
+                if (!putResp.ok) {
+                    const err = await putResp.json();
+                    throw new Error(err.message || '保存失败');
+                }
+                return true;
+            } catch (e) {
+                console.error('保存到 GitHub 失败:', e);
+                alert('保存失败：' + e.message);
+                return false;
+            }
+        }
+
+        // ========== 数据管理 ==========
+        let categories = [];
+        let dishes = [];
+        let todayList = [];
         let cart = {};
-        let currentCategory = categories[0];
+        let currentCategory = '';
         let currentTab = 'menu';
 
+        async function loadData() {
+            // 先从 GitHub 加载
+            const result = await loadFromGitHub();
+            if (result && result.content) {
+                categories = result.content.categories || [];
+                dishes = result.content.dishes || [];
+                todayList = result.content.today || [];
+                if (categories.length > 0) currentCategory = categories[0];
+                return;
+            }
+            // GitHub 加载失败，降级到 localStorage
+            categories = JSON.parse(localStorage.getItem('categories') || 'null') || ['素炒', '炒菜', '炖菜'];
+            dishes = JSON.parse(localStorage.getItem('dishes') || 'null') || [];
+            todayList = JSON.parse(localStorage.getItem('today') || 'null') || [];
+            if (categories.length > 0) currentCategory = categories[0];
+        }
+
+        async function persistData() {
+            const data = { categories, dishes, today: todayList };
+            const ok = await saveToGitHub(data);
+            if (!ok) {
+                // 降级到 localStorage
+                localStorage.setItem('categories', JSON.stringify(categories));
+                localStorage.setItem('dishes', JSON.stringify(dishes));
+                localStorage.setItem('today', JSON.stringify(todayList));
+                alert('⚠️ 保存到云端失败，已暂存到本地。请检查 Token 设置。');
+            }
+        }
+
         // 初始化
-        function init() {
+        async function init() {
+            await loadData();
             renderSidebar();
             renderContent();
             updateCartBadge();
@@ -484,12 +559,11 @@
 
         // 渲染今日安排
         function renderToday(content) {
-            const todayDishes = JSON.parse(localStorage.getItem('today') || '[]');
-            if (todayDishes.length === 0) {
+            if (todayList.length === 0) {
                 content.innerHTML = '<div class="empty">今日还没有安排菜品哦~</div>';
                 return;
             }
-            content.innerHTML = `<div class="dish-list">${todayDishes.map(id => {
+            content.innerHTML = `<div class="dish-list">${todayList.map(id => {
                 const dish = dishes.find(d => d.id === id);
                 if (!dish) return '';
                 return `
@@ -506,10 +580,9 @@
         }
 
         // 从今日安排中移除
-        function removeFromToday(id) {
-            let today = JSON.parse(localStorage.getItem('today') || '[]');
-            today = today.filter(t => t !== id);
-            localStorage.setItem('today', JSON.stringify(today));
+        async function removeFromToday(id) {
+            todayList = todayList.filter(t => t !== id);
+            await persistData();
             renderContent();
         }
 
@@ -584,14 +657,11 @@
         }
 
         // 删除菜品
-        function deleteDish(id) {
+        async function deleteDish(id) {
             if (!confirm('确定删除这个菜品吗？')) return;
             dishes = dishes.filter(d => d.id !== id);
-            saveData('dishes', dishes);
-            // 同时从今日安排中移除
-            let today = JSON.parse(localStorage.getItem('today') || '[]');
-            today = today.filter(t => t !== id);
-            localStorage.setItem('today', JSON.stringify(today));
+            todayList = todayList.filter(t => t !== id);
+            await persistData();
             renderContent();
         }
 
@@ -630,16 +700,15 @@
         }
 
         // 保存菜品
-        function saveDish() {
+        async function saveDish() {
             const name = document.getElementById('dishName').value.trim();
             const category = document.getElementById('dishCategory').value;
             const imageUrl = document.getElementById('dishImage').value.trim();
             const fileInput = document.getElementById('dishImageFile');
             if (!name) { alert('请输入菜品名称'); return; }
 
-            function doSave(finalImage) {
+            async function doSave(finalImage) {
                 if (editingDishId) {
-                    // 编辑模式
                     const idx = dishes.findIndex(d => d.id === editingDishId);
                     if (idx >= 0) {
                         dishes[idx].name = name;
@@ -647,7 +716,6 @@
                         if (finalImage) dishes[idx].image = finalImage;
                     }
                 } else {
-                    // 新建模式
                     const newDish = {
                         id: Date.now(),
                         name,
@@ -657,7 +725,7 @@
                     };
                     dishes.push(newDish);
                 }
-                saveData('dishes', dishes);
+                await persistData();
                 closeModal('addModal');
                 editingDishId = null;
                 currentCategory = category;
@@ -673,10 +741,8 @@
                 const reader = new FileReader();
                 reader.onload = function(e) { doSave(e.target.result); };
                 reader.readAsDataURL(fileInput.files[0]);
-            } else if (imageUrl) {
-                doSave(imageUrl);
             } else {
-                doSave(imageUrl); // 编辑时可能清空图片
+                doSave(imageUrl);
             }
         }
 
@@ -689,7 +755,7 @@
         }
 
         // 确定下单
-        function confirmOrder() {
+        async function confirmOrder() {
             const ids = Object.keys(cart).map(Number);
             if (ids.length === 0) { closeModal('cartModal'); return; }
             // 增加销量
@@ -697,11 +763,10 @@
                 const dish = dishes.find(d => d.id === id);
                 if (dish) dish.sales += cart[id] || 0;
             });
-            saveData('dishes', dishes);
             // 保存今日安排
-            const today = JSON.parse(localStorage.getItem('today') || '[]');
-            const newToday = [...new Set([...today, ...ids])];
-            localStorage.setItem('today', JSON.stringify(newToday));
+            const newToday = [...new Set([...todayList, ...ids])];
+            todayList = newToday;
+            await persistData();
             // 清空购物车
             cart = {};
             updateCartBadge();
@@ -748,22 +813,22 @@
             if (!name) return;
             if (categories.includes(name)) { alert('分类已存在'); return; }
             categories.push(name);
-            saveData('categories', categories);
+            persistData();
             renderSidebar();
             initCategorySelect();
             input.value = '';
-            openManage(); // 刷新管理弹窗
+            openManage();
         }
 
         function removeCategory(name) {
             if (!confirm(`确定删除分类"${name}"？该分类下的菜品不会被删除。`)) return;
             categories = categories.filter(c => c !== name);
-            saveData('categories', categories);
+            persistData();
             if (currentCategory === name) currentCategory = categories[0] || '';
             renderSidebar();
             renderContent();
             initCategorySelect();
-            openManage(); // 刷新管理弹窗
+            openManage();
         }
 
         // 启动
