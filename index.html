@@ -669,12 +669,13 @@
 
         async function deleteDish(id) {
             if (!isAdmin) return;
-            if (!confirm('确定删除这个菜品吗？')) return;
-            dishes = dishes.filter(d => d.id !== id);
-            todayList = todayList.filter(t => t !== id);
-            saveAll();
-            showToast('已删除（数据已保存到本地）');
-            renderContent();
+            showConfirm('确定删除这个菜品吗？', () => {
+                dishes = dishes.filter(d => d.id !== id);
+                todayList = todayList.filter(t => t !== id);
+                saveAll();
+                showToast('已删除（数据已保存到本地）');
+                renderContent();
+            });
         }
 
         function previewImage(input) {
@@ -791,15 +792,16 @@
         }
 
         function removeCategory(name) {
-            if (!confirm(`确定删除分类"${name}"？`)) return;
-            categories = categories.filter(c => c !== name);
-            saveAll();
-            showToast('分类已删除');
-            if (currentCategory === name) currentCategory = categories[0] || '';
-            renderSidebar();
-            renderContent();
-            closeManage();
-            openManage();
+            showConfirm(`确定删除分类"${name}"？`, () => {
+                categories = categories.filter(c => c !== name);
+                saveAll();
+                showToast('分类已删除');
+                if (currentCategory === name) currentCategory = categories[0] || '';
+                renderSidebar();
+                renderContent();
+                closeManage();
+                openManage();
+            });
         }
 
         // ========== 购物车 & 下单 ==========
@@ -933,6 +935,26 @@
 
         // ========== Toast ==========
         let toastTimer;
+        function showConfirm(msg, onConfirm) {
+            const old = document.getElementById('confirmModal');
+            if (old) old.remove();
+            const html = `
+                <div class="modal show" id="confirmModal" onclick="if(event.target===this){document.getElementById('confirmModal').remove();}">
+                    <div class="modal-box" style="max-width:280px;text-align:center;">
+                        <div style="padding:20px 0;font-size:15px;color:#333;">${msg}</div>
+                        <div class="modal-actions" style="justify-content:center;gap:16px;">
+                            <button class="btn" onclick="document.getElementById('confirmModal').remove();" style="padding:8px 24px;">取消</button>
+                            <button class="btn primary" id="confirmBtn" style="padding:8px 24px;">确定</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+            document.getElementById('confirmBtn').onclick = () => {
+                document.getElementById('confirmModal').remove();
+                onConfirm();
+            };
+        }
+
         function showToast(msg) {
             const old = document.getElementById('toast');
             if (old) { old.remove(); clearTimeout(toastTimer); }
