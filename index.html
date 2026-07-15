@@ -493,34 +493,78 @@
             renderContent();
         }
 
-        // ========== 数据持久化：localStorage 为主 ==========
+        // ========== 数据持久化 ==========
         function saveAll() {
             const data = { categories, dishes, today: todayList };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
             dataDirty = true;
-            document.getElementById('exportTip').classList.add('show');
+            // 管理模式自动写 GitHub
+            if (isAdmin) {
+                saveToGitHub(data);
+            }
+        }
+
+        async function saveToGitHub(data) {
+            if (!GITHUB_TOKEN) {
+                const t = prompt('请输入 GitHub Token 以保存数据到云端：');
+                if (t) {
+                    GITHUB_TOKEN = t.trim();
+                    localStorage.setItem('github_token', GITHUB_TOKEN);
+                } else {
+                    showToast('⚠ 未设置Token，数据仅保存在本地');
+                    return;
+                }
+            }
+            try {
+                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${DATA_FILE}`;
+                let sha = null;
+                const getResp = await fetch(url, {
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                });
+                if (getResp.ok) {
+                    const f = await getResp.json();
+                    sha = f.sha;
+                }
+                const jsonStr = JSON.stringify(data, null, 2);
+                const b64 = btoa(unescape(encodeURIComponent(jsonStr)));
+                const body = { message: '更新菜品数据', content: b64 };
+                if (sha) body.sha = sha;
+                const putResp = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (putResp.ok) {
+                    dataDirty = false;
+                    document.getElementById('exportTip').classList.remove('show');
+                    showToast('数据已同步到云端 ✓');
+                } else {
+                    if (putResp.status === 401 || putResp.status === 403) {
+                        localStorage.removeItem('github_token'); GITHUB_TOKEN = '';
+                    }
+                    showToast('⚠ 云端同步失败，数据仅保存本地');
+                }
+            } catch (e) {
+                showToast('⚠ 网络异常，数据仅保存本地');
+            }
         }
 
         async function loadAll() {
-            // 1. 优先从 localStorage 加载（最新数据）
-            let localLoaded = false;
-            const local = localStorage.getItem(STORAGE_KEY);
-            if (local) {
-                try {
-                    const data = JSON.parse(local);
-                    categories = data.categories || [];
-                    dishes = data.dishes || [];
-                    todayList = data.today || [];
-                    if (categories.length > 0) currentCategory = categories[0];
-                    dataDirty = false;
-                    document.getElementById('exportTip').classList.remove('show');
-                    localLoaded = categories.length > 0 || dishes.length > 0;
-                } catch (e) { /* 损坏则从 data.json 加载 */ }
-            }
+            // 1. 先从 data.json 加载（GitHub Pages 上的数据最可靠）
+            await loadFromJson();
 
-            // 2. localStorage 为空或数据为空时，从 data.json 加载
-            if (!localLoaded) {
-                await loadFromJson();
+            // 2. 如果 data.json 加载失败，尝试从 localStorage 加载
+            if (categories.length === 0 && dishes.length === 0) {
+                const local = localStorage.getItem(STORAGE_KEY);
+                if (local) {
+                    try {
+                        const data = JSON.parse(local);
+                        categories = data.categories || [];
+                        dishes = data.dishes || [];
+                        todayList = data.today || [];
+                        if (categories.length > 0) currentCategory = categories[0];
+                    } catch (e) { /* ignore */ }
+                }
             }
 
             // 3. 购物车从独立 key 加载
@@ -529,6 +573,8 @@
                 if (!dishes.find(d => d.id === parseInt(id))) delete cart[id];
             });
             localStorage.setItem('cart', JSON.stringify(cart));
+
+            if (categories.length > 0 && !currentCategory) currentCategory = categories[0];
         }
 
         async function loadFromJson() {
@@ -722,9 +768,7 @@
                         sales: 0
                     });
                 }
-                // 图片数据存 localStorage，刷新不丢失
                 saveAll();
-                showToast('保存成功 ✓');
                 closeModal('addModal');
                 editingDishId = null;
                 currentCategory = category;
