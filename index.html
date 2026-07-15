@@ -347,7 +347,7 @@
     <!-- 添加菜品弹窗 -->
     <div class="modal" id="addModal">
         <div class="modal-box">
-            <div class="modal-title">添加菜品</div>
+            <div class="modal-title" id="addModalTitle">添加菜品</div>
             <div class="form-group">
                 <label>菜品名称</label>
                 <input type="text" id="dishName" placeholder="例如：红烧排骨">
@@ -470,6 +470,8 @@
                         <div class="dish-sales">销量 ${dish.sales}</div>
                     </div>
                     <div class="dish-action">
+                        <button class="btn-sm" onclick="openEdit(${dish.id})" style="padding:2px 6px;font-size:11px;margin-right:4px;">✎</button>
+                        <button class="btn-del" onclick="deleteDish(${dish.id})" style="width:22px;height:22px;font-size:12px;margin-right:6px;">✕</button>
                         ${cart[dish.id] ? `
                             <button class="btn-minus" onclick="updateCart(${dish.id}, -1)">−</button>
                             <span class="count">${cart[dish.id]}</span>
@@ -550,7 +552,49 @@
         // 弹窗控制
         function openModal(id) { document.getElementById(id).classList.add('show'); }
         function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-        function openAdd() { openModal('addModal'); }
+        function openAdd() {
+            editingDishId = null;
+            document.getElementById('addModalTitle').textContent = '添加菜品';
+            document.getElementById('dishName').value = '';
+            document.getElementById('dishImage').value = '';
+            document.getElementById('dishImageFile').value = '';
+            document.getElementById('imagePreview').style.display = 'none';
+            openModal('addModal');
+        }
+        let editingDishId = null;
+
+        // 打开编辑弹窗
+        function openEdit(id) {
+            const dish = dishes.find(d => d.id === id);
+            if (!dish) return;
+            editingDishId = id;
+            document.getElementById('addModalTitle').textContent = '编辑菜品';
+            document.getElementById('dishName').value = dish.name;
+            document.getElementById('dishCategory').value = dish.category;
+            document.getElementById('dishImage').value = dish.image || '';
+            document.getElementById('dishImageFile').value = '';
+            const preview = document.getElementById('imagePreview');
+            if (dish.image) {
+                preview.src = dish.image;
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+            openModal('addModal');
+        }
+
+        // 删除菜品
+        function deleteDish(id) {
+            if (!confirm('确定删除这个菜品吗？')) return;
+            dishes = dishes.filter(d => d.id !== id);
+            saveData('dishes', dishes);
+            // 同时从今日安排中移除
+            let today = JSON.parse(localStorage.getItem('today') || '[]');
+            today = today.filter(t => t !== id);
+            localStorage.setItem('today', JSON.stringify(today));
+            renderContent();
+        }
+
         function openCart() {
             const items = document.getElementById('cartItems');
             const ids = Object.keys(cart);
@@ -593,18 +637,29 @@
             const fileInput = document.getElementById('dishImageFile');
             if (!name) { alert('请输入菜品名称'); return; }
 
-            // 处理图片：优先本地图片 base64
             function doSave(finalImage) {
-                const newDish = {
-                    id: Date.now(),
-                    name,
-                    category,
-                    image: finalImage,
-                    sales: 0
-                };
-                dishes.push(newDish);
+                if (editingDishId) {
+                    // 编辑模式
+                    const idx = dishes.findIndex(d => d.id === editingDishId);
+                    if (idx >= 0) {
+                        dishes[idx].name = name;
+                        dishes[idx].category = category;
+                        if (finalImage) dishes[idx].image = finalImage;
+                    }
+                } else {
+                    // 新建模式
+                    const newDish = {
+                        id: Date.now(),
+                        name,
+                        category,
+                        image: finalImage,
+                        sales: 0
+                    };
+                    dishes.push(newDish);
+                }
                 saveData('dishes', dishes);
                 closeModal('addModal');
+                editingDishId = null;
                 currentCategory = category;
                 renderSidebar();
                 renderContent();
@@ -621,7 +676,7 @@
             } else if (imageUrl) {
                 doSave(imageUrl);
             } else {
-                doSave('');
+                doSave(imageUrl); // 编辑时可能清空图片
             }
         }
 
@@ -655,26 +710,60 @@
             alert('已加入今日安排！');
         }
 
-        // 管理分类
+        // 管理分类弹窗
         function openManage() {
-            const name = prompt('当前分类：' + categories.join('、') + '\n输入新分类名称添加（或输入现有分类删除）：');
+            const existing = document.getElementById('manageModal');
+            if (existing) existing.remove();
+
+            const html = `
+            <div class="modal show" id="manageModal" onclick="if(event.target===this)closeModal('manageModal')">
+                <div class="modal-box">
+                    <div class="modal-title">管理分类</div>
+                    <div style="margin-bottom:12px;">
+                        <div style="display:flex;gap:8px;">
+                            <input type="text" id="newCategoryName" placeholder="输入新分类名称" style="flex:1;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                            <button class="btn primary" onclick="addCategory()" style="flex:none;padding:10px 16px;border-radius:8px;">添加</button>
+                        </div>
+                    </div>
+                    <div style="max-height:300px;overflow-y:auto;">
+                        ${categories.map(c => `
+                            <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">
+                                <span style="flex:1;font-size:14px;">${c}</span>
+                                <button class="btn-del" onclick="removeCategory('${c}')" style="width:22px;height:22px;font-size:12px;">✕</button>
+                            </div>
+                        `).join('')}
+                        ${categories.length === 0 ? '<div class="empty">暂无分类</div>' : ''}
+                    </div>
+                    <div class="modal-actions" style="margin-top:16px;">
+                        <button class="btn" onclick="closeModal('manageModal')">关闭</button>
+                    </div>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        function addCategory() {
+            const input = document.getElementById('newCategoryName');
+            const name = input.value.trim();
             if (!name) return;
-            const idx = categories.indexOf(name);
-            if (idx >= 0) {
-                if (confirm(`确定删除分类"${name}"？`)) {
-                    categories.splice(idx, 1);
-                    saveData('categories', categories);
-                    currentCategory = categories[0] || '';
-                    renderSidebar();
-                    renderContent();
-                    initCategorySelect();
-                }
-            } else {
-                categories.push(name);
-                saveData('categories', categories);
-                renderSidebar();
-                initCategorySelect();
-            }
+            if (categories.includes(name)) { alert('分类已存在'); return; }
+            categories.push(name);
+            saveData('categories', categories);
+            renderSidebar();
+            initCategorySelect();
+            input.value = '';
+            openManage(); // 刷新管理弹窗
+        }
+
+        function removeCategory(name) {
+            if (!confirm(`确定删除分类"${name}"？该分类下的菜品不会被删除。`)) return;
+            categories = categories.filter(c => c !== name);
+            saveData('categories', categories);
+            if (currentCategory === name) currentCategory = categories[0] || '';
+            renderSidebar();
+            renderContent();
+            initCategorySelect();
+            openManage(); // 刷新管理弹窗
         }
 
         // 启动
