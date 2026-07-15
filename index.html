@@ -500,6 +500,7 @@
 
         function loadAll() {
             // 1. 优先从 localStorage 加载（最新数据）
+            let localLoaded = false;
             const local = localStorage.getItem(STORAGE_KEY);
             if (local) {
                 try {
@@ -510,11 +511,12 @@
                     if (categories.length > 0) currentCategory = categories[0];
                     dataDirty = false;
                     document.getElementById('exportTip').classList.remove('show');
+                    localLoaded = categories.length > 0 || dishes.length > 0;
                 } catch (e) { /* 损坏则从 data.json 加载 */ }
             }
 
-            // 2. localStorage 为空时从 data.json 加载（首次使用）
-            if (categories.length === 0) {
+            // 2. localStorage 为空或数据为空时，从 data.json 加载
+            if (!localLoaded) {
                 loadFromJson();
             }
 
@@ -943,8 +945,15 @@
             // 后台尝试从 data.json 更新（不阻塞）
             fetch('data.json?t=' + Date.now()).then(r => r.json()).then(data => {
                 const local = localStorage.getItem(STORAGE_KEY);
-                if (!local || !dataDirty) {
-                    // 没有本地修改时才覆盖
+                let localHasData = false;
+                if (local) {
+                    try {
+                        const d = JSON.parse(local);
+                        localHasData = (d.categories && d.categories.length > 0) || (d.dishes && d.dishes.length > 0);
+                    } catch (e) {}
+                }
+                if (!localHasData || !dataDirty) {
+                    // 本地没有数据 或 没有本地修改时才覆盖
                     categories = data.categories || [];
                     dishes = data.dishes || [];
                     todayList = data.today || [];
