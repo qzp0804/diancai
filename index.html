@@ -408,14 +408,23 @@
             return !!GITHUB_TOKEN;
         }
 
-        // 可靠的 UTF-8 Base64 编码
+        // 可靠的 UTF-8 Base64 编码（使用 TextEncoder）
         function utf8ToBase64(str) {
-            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(str);
+            let binary = '';
+            bytes.forEach(b => binary += String.fromCharCode(b));
+            return btoa(binary);
         }
 
-        // 可靠的 UTF-8 Base64 解码
+        // 可靠的 UTF-8 Base64 解码（使用 TextDecoder）
         function base64ToUtf8(str) {
-            return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+            const binary = atob(str);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return new TextDecoder('utf-8').decode(bytes);
         }
 
         // ========== GitHub API 读写 ==========
