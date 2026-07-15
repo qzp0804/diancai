@@ -32,8 +32,41 @@
             display: flex; align-items: center; justify-content: center;
             font-size: 24px;
         }
-        .title-area h1 { font-size: 18px; color: #333; }
+        .title-area { flex: 1; }
+        .title-area h1 { font-size: 18px; color: #333; cursor: default; }
         .title-area p { font-size: 12px; color: #666; margin-top: 2px; }
+        .admin-badge {
+            display: none;
+            background: #ff6b6b;
+            color: #fff;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .admin-badge.show { display: inline-block; }
+        .header-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .btn-sm {
+            padding: 4px 12px;
+            border-radius: 14px;
+            border: 1px solid #4ecdc4;
+            background: #fff;
+            color: #4ecdc4;
+            font-size: 12px;
+            cursor: pointer;
+            display: none;
+        }
+        .btn-sm.primary {
+            background: #4ecdc4;
+            color: #fff;
+            border: none;
+        }
+        .btn-sm.show { display: inline-block; }
         .tabs {
             display: flex;
             gap: 20px;
@@ -132,6 +165,17 @@
             display: flex; align-items: center; justify-content: center;
         }
         .count { font-size: 14px; color: #333; min-width: 20px; text-align: center; }
+        .admin-btn {
+            display: none;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            border: none;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .admin-btn.show { display: flex; align-items: center; justify-content: center; }
+        .btn-edit { background: #e8f5e9; color: #4caf50; }
+        .btn-del { background: #ffebee; color: #f44336; }
 
         .footer {
             background: #fff;
@@ -187,6 +231,7 @@
             border: none;
         }
 
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -204,8 +249,19 @@
             padding: 20px;
             width: 100%;
             max-width: 360px;
+            max-height: 80vh;
+            overflow-y: auto;
         }
         .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 14px; color: #666; margin-bottom: 4px; }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
         .modal-actions {
             display: flex;
             gap: 10px;
@@ -214,7 +270,6 @@
         .modal-actions .btn { padding: 10px; }
 
         .cart-modal .modal-box {
-            max-height: 70vh;
             display: flex;
             flex-direction: column;
         }
@@ -238,8 +293,26 @@
             color: #999;
             font-size: 14px;
         }
+        .btn-upload {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px dashed #4ecdc4;
+            background: #f0fdf9;
+            color: #4ecdc4;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .btn-upload input { display: none; }
+        .image-preview {
+            width: 80px; height: 80px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #eee;
+            margin: 8px 0;
+            display: none;
+        }
 
-        /* Toast */
         .toast {
             position: fixed;
             bottom: 80px;
@@ -259,17 +332,6 @@
             from { opacity: 0; transform: translateX(-50%) translateY(10px); }
             to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
-
-        /* 下单结果 */
-        .order-result {
-            background: #f0fdf9;
-            border-radius: 12px;
-            padding: 16px;
-            margin-top: 12px;
-            text-align: center;
-        }
-        .order-result .emoji { font-size: 40px; }
-        .order-result .text { font-size: 14px; color: #333; margin-top: 8px; }
     </style>
 </head>
 <body>
@@ -278,8 +340,13 @@
             <div class="header-top">
                 <div class="avatar">🐰</div>
                 <div class="title-area">
-                    <h1>老大的私房菜单</h1>
+                    <h1 onclick="onTitleClick()">老大的私房菜单<span class="admin-badge" id="adminBadge">管理</span></h1>
                     <p>给糖小宝准备的菜单~</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-sm" id="btnManage" onclick="openManage()">分类</button>
+                    <button class="btn-sm primary" id="btnAdd" onclick="openAdd()">添加菜品</button>
+                    <button class="btn-sm" id="btnExit" onclick="exitAdmin()" style="border-color:#ff6b6b;color:#ff6b6b;">退出管理</button>
                 </div>
             </div>
             <div class="tabs">
@@ -307,6 +374,31 @@
         </div>
     </div>
 
+    <!-- 添加/编辑菜品弹窗 -->
+    <div class="modal" id="addModal">
+        <div class="modal-box">
+            <div class="modal-title" id="addModalTitle">添加菜品</div>
+            <div class="form-group">
+                <label>菜品名称</label>
+                <input type="text" id="dishName" placeholder="例如：红烧排骨">
+            </div>
+            <div class="form-group">
+                <label>分类</label>
+                <select id="dishCategory"></select>
+            </div>
+            <div class="form-group">
+                <label>图片</label>
+                <label class="btn-upload">📷 选择图片<input type="file" id="dishImageFile" accept="image/*" onchange="previewImage(this)"></label>
+                <img class="image-preview" id="imagePreview" src="">
+                <input type="text" id="dishImage" placeholder="或填写图片URL" style="margin-top:8px;">
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('addModal')">取消</button>
+                <button class="btn primary" onclick="saveDish()">保存</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 购物车弹窗 -->
     <div class="modal cart-modal" id="cartModal">
         <div class="modal-box">
@@ -323,18 +415,60 @@
         // ========== 配置 ==========
         const GITHUB_OWNER = 'qzp0804';
         const GITHUB_REPO = 'diancai';
+        const DATA_FILE = 'data.json';
         const ORDERS_FILE = 'orders.json';
+        const ADMIN_PASSWORD = 'laoda520'; // 管理密码，你可以改
         let GITHUB_TOKEN = localStorage.getItem('github_token') || '';
 
-        // ========== 数据 ==========
+        // ========== 状态 ==========
         let categories = [];
         let dishes = [];
         let todayList = [];
         let cart = {};
         let currentCategory = '';
         let currentTab = 'menu';
+        let isAdmin = false;
+        let editingDishId = null;
+        let titleClickCount = 0;
+        let titleClickTimer = null;
 
-        // ========== 加载菜品数据 ==========
+        // ========== 管理员入口：连点标题5次 ==========
+        function onTitleClick() {
+            titleClickCount++;
+            if (titleClickCount >= 5) {
+                titleClickCount = 0;
+                if (!isAdmin) enterAdmin();
+            }
+            clearTimeout(titleClickTimer);
+            titleClickTimer = setTimeout(() => { titleClickCount = 0; }, 2000);
+        }
+
+        function enterAdmin() {
+            const pw = prompt('请输入管理密码：');
+            if (pw !== ADMIN_PASSWORD) {
+                showToast('密码错误');
+                return;
+            }
+            isAdmin = true;
+            document.getElementById('adminBadge').classList.add('show');
+            document.getElementById('btnManage').classList.add('show');
+            document.getElementById('btnAdd').classList.add('show');
+            document.getElementById('btnExit').classList.add('show');
+            showToast('已进入管理模式');
+            renderContent();
+        }
+
+        function exitAdmin() {
+            isAdmin = false;
+            document.getElementById('adminBadge').classList.remove('show');
+            document.getElementById('btnManage').classList.remove('show');
+            document.getElementById('btnAdd').classList.remove('show');
+            document.getElementById('btnExit').classList.remove('show');
+            showToast('已退出管理模式');
+            renderContent();
+        }
+
+        // ========== 加载数据 ==========
         async function loadData() {
             try {
                 const resp = await fetch('data.json?t=' + Date.now());
@@ -342,14 +476,12 @@
                 const data = await resp.json();
                 categories = data.categories || [];
                 dishes = data.dishes || [];
-                if (categories.length > 0) currentCategory = categories[0];
+                if (categories.length > 0 && !currentCategory) currentCategory = categories[0];
             } catch (e) {
                 console.error('加载失败:', e);
             }
-            // 今日安排和购物车从本地加载
             todayList = JSON.parse(localStorage.getItem('today') || '[]');
             cart = JSON.parse(localStorage.getItem('cart') || '{}');
-            // 清理不存在菜品的购物车
             Object.keys(cart).forEach(id => {
                 if (!dishes.find(d => d.id === parseInt(id))) delete cart[id];
             });
@@ -359,6 +491,62 @@
         function saveLocal() {
             localStorage.setItem('today', JSON.stringify(todayList));
             localStorage.setItem('cart', JSON.stringify(cart));
+        }
+
+        // ========== 确保 Token ==========
+        function ensureToken() {
+            if (!GITHUB_TOKEN) {
+                const t = prompt('需要 GitHub Token（已微信发你）：');
+                if (t) {
+                    GITHUB_TOKEN = t.trim();
+                    localStorage.setItem('github_token', GITHUB_TOKEN);
+                    return true;
+                }
+                return false;
+            }
+            return true;
+        }
+
+        // ========== 保存 data.json 到 GitHub ==========
+        async function saveDataToGitHub() {
+            if (!ensureToken()) return false;
+            try {
+                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${DATA_FILE}`;
+                const getResp = await fetch(url, {
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                });
+                if (!getResp.ok) throw new Error('获取文件失败');
+                const fileInfo = await getResp.json();
+                const sha = fileInfo.sha;
+
+                const jsonStr = JSON.stringify({ categories, dishes, today: todayList }, null, 2);
+                const contentBase64 = btoa(unescape(encodeURIComponent(jsonStr)));
+
+                const putResp = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: '更新菜品数据',
+                        content: contentBase64,
+                        sha: sha
+                    })
+                });
+                if (!putResp.ok) {
+                    if (putResp.status === 401 || putResp.status === 403) {
+                        localStorage.removeItem('github_token');
+                        GITHUB_TOKEN = '';
+                        showToast('Token 失效，请重新操作');
+                    }
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                console.error('保存失败:', e);
+                return false;
+            }
         }
 
         // ========== 渲染 ==========
@@ -385,6 +573,10 @@
                         <div class="dish-sales">已点 ${d.sales || 0} 次</div>
                     </div>
                     <div class="dish-action">
+                        ${isAdmin ? `
+                            <button class="admin-btn btn-edit show" onclick="openEdit(${d.id})" title="编辑">✎</button>
+                            <button class="admin-btn btn-del show" onclick="deleteDish(${d.id})" title="删除">✕</button>
+                        ` : ''}
                         ${cart[d.id] ? `<button class="btn-minus" onclick="updateCart(${d.id},-1)">−</button><span class="count">${cart[d.id]}</span>` : ''}
                         <button class="btn-add" onclick="updateCart(${d.id},1)">+</button>
                     </div>
@@ -406,7 +598,7 @@
                         <div class="dish-name">${d.name}</div>
                         <div class="dish-sales">${d.category}</div>
                     </div>
-                    <button class="btn-del" onclick="removeToday(${id})" style="width:24px;height:24px;border-radius:50%;border:none;background:#ff6b6b;color:#fff;font-size:14px;cursor:pointer;">✕</button>
+                    <button class="admin-btn btn-del show" onclick="removeToday(${id})" style="width:24px;height:24px;">✕</button>
                 </div>`;
             }).join('')}</div>`;
         }
@@ -425,7 +617,176 @@
             renderContent();
         }
 
-        // ========== 购物车 ==========
+        // ========== 菜品增删改 ==========
+        function openAdd() {
+            if (!isAdmin) return;
+            editingDishId = null;
+            document.getElementById('addModalTitle').textContent = '添加菜品';
+            document.getElementById('dishName').value = '';
+            document.getElementById('dishImage').value = '';
+            document.getElementById('dishImageFile').value = '';
+            document.getElementById('imagePreview').style.display = 'none';
+            initCategorySelect();
+            openModal('addModal');
+        }
+
+        function openEdit(id) {
+            if (!isAdmin) return;
+            const d = dishes.find(x => x.id === id);
+            if (!d) return;
+            editingDishId = id;
+            document.getElementById('addModalTitle').textContent = '编辑菜品';
+            document.getElementById('dishName').value = d.name;
+            document.getElementById('dishImage').value = d.image || '';
+            document.getElementById('dishImageFile').value = '';
+            const preview = document.getElementById('imagePreview');
+            if (d.image) {
+                preview.src = d.image;
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+            initCategorySelect();
+            document.getElementById('dishCategory').value = d.category;
+            openModal('addModal');
+        }
+
+        async function deleteDish(id) {
+            if (!isAdmin) return;
+            if (!confirm('确定删除这个菜品吗？')) return;
+            dishes = dishes.filter(d => d.id !== id);
+            todayList = todayList.filter(t => t !== id);
+            saveLocal();
+            const ok = await saveDataToGitHub();
+            showToast(ok ? '已删除并同步' : '已删除（本地）');
+            renderContent();
+        }
+
+        function previewImage(input) {
+            const preview = document.getElementById('imagePreview');
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        async function saveDish() {
+            if (!isAdmin) return;
+            const name = document.getElementById('dishName').value.trim();
+            const category = document.getElementById('dishCategory').value;
+            const imageUrl = document.getElementById('dishImage').value.trim();
+            const fileInput = document.getElementById('dishImageFile');
+
+            if (!name) { alert('请输入菜品名称'); return; }
+
+            async function doSave(finalImage) {
+                if (editingDishId) {
+                    const idx = dishes.findIndex(d => d.id === editingDishId);
+                    if (idx >= 0) {
+                        dishes[idx].name = name;
+                        dishes[idx].category = category;
+                        if (finalImage) dishes[idx].image = finalImage;
+                    }
+                } else {
+                    dishes.push({
+                        id: Date.now(),
+                        name,
+                        category,
+                        image: finalImage,
+                        sales: 0
+                    });
+                }
+                const ok = await saveDataToGitHub();
+                showToast(ok ? '已保存并同步到云端' : '已保存（本地）');
+                closeModal('addModal');
+                editingDishId = null;
+                currentCategory = category;
+                renderSidebar();
+                renderContent();
+            }
+
+            if (fileInput.files && fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => doSave(e.target.result);
+                reader.readAsDataURL(fileInput.files[0]);
+            } else {
+                doSave(imageUrl);
+            }
+        }
+
+        function initCategorySelect() {
+            const select = document.getElementById('dishCategory');
+            select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+
+        // ========== 分类管理 ==========
+        function openManage() {
+            if (!isAdmin) return;
+            const old = document.getElementById('manageModal');
+            if (old) old.remove();
+
+            const html = `
+            <div class="modal show" id="manageModal" onclick="if(event.target===this)closeManage()">
+                <div class="modal-box">
+                    <div class="modal-title">管理分类</div>
+                    <div style="display:flex;gap:8px;margin-bottom:12px;">
+                        <input type="text" id="newCatName" placeholder="新分类名称" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;">
+                        <button class="btn primary" onclick="addCategory()" style="flex:none;padding:10px 16px;border-radius:8px;">添加</button>
+                    </div>
+                    <div style="max-height:300px;overflow-y:auto;">
+                        ${categories.map(c => `
+                            <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">
+                                <span style="flex:1;font-size:14px;">${c}</span>
+                                <button onclick="removeCategory('${c}')" style="width:22px;height:22px;border-radius:50%;border:none;background:#ff6b6b;color:#fff;cursor:pointer;">✕</button>
+                            </div>
+                        `).join('')}
+                        ${categories.length === 0 ? '<div class="empty">暂无分类</div>' : ''}
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn" onclick="closeManage()">关闭</button>
+                    </div>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        function closeManage() {
+            const m = document.getElementById('manageModal');
+            if (m) m.remove();
+        }
+
+        async function addCategory() {
+            const input = document.getElementById('newCatName');
+            const name = input.value.trim();
+            if (!name) return;
+            if (categories.includes(name)) { alert('分类已存在'); return; }
+            categories.push(name);
+            const ok = await saveDataToGitHub();
+            showToast(ok ? '已添加并同步' : '已添加（本地）');
+            renderSidebar();
+            initCategorySelect();
+            input.value = '';
+            closeManage();
+            openManage();
+        }
+
+        async function removeCategory(name) {
+            if (!confirm(`确定删除分类"${name}"？`)) return;
+            categories = categories.filter(c => c !== name);
+            const ok = await saveDataToGitHub();
+            showToast(ok ? '已删除并同步' : '已删除（本地）');
+            if (currentCategory === name) currentCategory = categories[0] || '';
+            renderSidebar();
+            renderContent();
+            closeManage();
+            openManage();
+        }
+
+        // ========== 购物车 & 下单 ==========
         function updateCart(id, delta) {
             if (!cart[id]) cart[id] = 0;
             cart[id] += delta;
@@ -459,7 +820,6 @@
             showToast('随机选中：' + d.name);
         }
 
-        // ========== 弹窗 ==========
         function openModal(id) { document.getElementById(id).classList.add('show'); }
         function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
@@ -483,15 +843,13 @@
             openModal('cartModal');
         }
 
-        // ========== 下单 ==========
         async function confirmOrder() {
             const ids = Object.keys(cart).map(Number);
             if (ids.length === 0) { closeModal('cartModal'); return; }
 
-            // 记录今日安排
             todayList = [...new Set([...todayList, ...ids])];
+            saveLocal();
 
-            // 构建订单
             const now = new Date();
             const order = {
                 time: now.toLocaleString('zh-CN'),
@@ -502,89 +860,53 @@
                 })
             };
 
-            // 保存到本地
-            saveLocal();
             cart = {};
             updateCartBadge();
             closeModal('cartModal');
             renderContent();
 
-            // 尝试上传订单
             const ok = await saveOrder(order);
             if (ok) {
                 showToast('下单成功！老大已收到~');
             } else {
-                // 存本地订单记录
-                const localOrders = JSON.parse(localStorage.getItem('pending_orders') || '[]');
-                localOrders.push(order);
-                localStorage.setItem('pending_orders', JSON.stringify(localOrders));
+                const pending = JSON.parse(localStorage.getItem('pending_orders') || '[]');
+                pending.push(order);
+                localStorage.setItem('pending_orders', JSON.stringify(pending));
                 showToast('下单成功（本地保存）');
             }
         }
 
-        // ========== 保存订单到 GitHub ==========
         async function saveOrder(order) {
-            if (!GITHUB_TOKEN) {
-                // 尝试设置
-                const token = prompt(
-                    '首次使用需设置 Token（只需一次）：\n\n' +
-                    'Token 已通过微信发给你，粘贴即可\n\n' +
-                    '💡 建议用 Chrome/Safari 打开'
-                );
-                if (token) {
-                    GITHUB_TOKEN = token.trim();
-                    localStorage.setItem('github_token', GITHUB_TOKEN);
-                } else {
-                    return false;
-                }
-            }
-
+            if (!ensureToken()) return false;
             try {
                 const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${ORDERS_FILE}`;
-
-                // 获取现有订单
-                let orders = [];
-                let sha = null;
+                let orders = [], sha = null;
                 const getResp = await fetch(url, {
                     headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
                 });
                 if (getResp.ok) {
-                    const file = await getResp.json();
-                    sha = file.sha;
-                    const jsonStr = decodeURIComponent(escape(atob(file.content)));
-                    orders = JSON.parse(jsonStr);
+                    const f = await getResp.json();
+                    sha = f.sha;
+                    orders = JSON.parse(decodeURIComponent(escape(atob(f.content))));
                 }
-
-                // 追加新订单
                 orders.push(order);
-
-                // 保存
                 const jsonStr = JSON.stringify(orders, null, 2);
-                const contentBase64 = btoa(unescape(encodeURIComponent(jsonStr)));
-                const body = { message: '新订单', content: contentBase64 };
+                const b64 = btoa(unescape(encodeURIComponent(jsonStr)));
+                const body = { message: '新订单', content: b64 };
                 if (sha) body.sha = sha;
-
                 const putResp = await fetch(url, {
                     method: 'PUT',
-                    headers: {
-                        'Authorization': `token ${GITHUB_TOKEN}`,
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
                 });
-
                 if (!putResp.ok) {
                     if (putResp.status === 401 || putResp.status === 403) {
-                        localStorage.removeItem('github_token');
-                        GITHUB_TOKEN = '';
+                        localStorage.removeItem('github_token'); GITHUB_TOKEN = '';
                     }
                     return false;
                 }
                 return true;
-            } catch (e) {
-                console.error('上传订单失败:', e);
-                return false;
-            }
+            } catch (e) { return false; }
         }
 
         // ========== Toast ==========
@@ -593,9 +915,7 @@
             const old = document.getElementById('toast');
             if (old) { old.remove(); clearTimeout(toastTimer); }
             const t = document.createElement('div');
-            t.id = 'toast';
-            t.className = 'toast';
-            t.textContent = msg;
+            t.id = 'toast'; t.className = 'toast'; t.textContent = msg;
             document.body.appendChild(t);
             toastTimer = setTimeout(() => t.remove(), 2500);
         }
