@@ -389,97 +389,61 @@
 
     <script>
         // ========== 配置 ==========
-        // ⚠️ 部署前需要设置 GitHub Token（在 GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)）
-        // 权限勾选 repo（或者只勾选 public_repo，如果仓库是公开的）
-        const GITHUB_OWNER = 'qzp0804';
-        const GITHUB_REPO = 'diancai';
-        const DATA_FILE = 'data.json';
-        let GITHUB_TOKEN = localStorage.getItem('github_token') || '';
+        // 使用 jsonbin.io 作为免费数据存储（支持 CORS，无需后端）
+        // 注册: https://jsonbin.io，获取 Master Key 和 Bin ID
+        const JSONBIN_KEY = localStorage.getItem('jsonbin_key') || '';
+        const JSONBIN_ID = localStorage.getItem('jsonbin_id') || '';
 
-        // 如果没设置 token，提示设置
-        function ensureToken() {
-            if (!GITHUB_TOKEN) {
-                const token = prompt('请设置 GitHub Personal Access Token：\n\n（在 GitHub Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic)）\n勾选 repo 权限即可\n\nToken 会保存在你的浏览器本地存储中');
-                if (token) {
-                    GITHUB_TOKEN = token.trim();
-                    localStorage.setItem('github_token', GITHUB_TOKEN);
+        function ensureJsonBinConfig() {
+            if (!JSONBIN_KEY) {
+                const key = prompt('请设置 jsonbin.io 的 X-Master-Key：\n\n1. 访问 https://jsonbin.io 注册/登录\n2. 点击 API Keys 获取 X-Master-Key\n3. 创建一个 Bin，复制 Bin ID（URL 中的那串字符）');
+                if (key) {
+                    localStorage.setItem('jsonbin_key', key.trim());
                 }
             }
-            return !!GITHUB_TOKEN;
-        }
-
-        // 可靠的 UTF-8 Base64 编码（使用 TextEncoder）
-        function utf8ToBase64(str) {
-            const encoder = new TextEncoder();
-            const bytes = encoder.encode(str);
-            let binary = '';
-            bytes.forEach(b => binary += String.fromCharCode(b));
-            return btoa(binary);
-        }
-
-        // 可靠的 UTF-8 Base64 解码（使用 TextDecoder）
-        function base64ToUtf8(str) {
-            const binary = atob(str);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-                bytes[i] = binary.charCodeAt(i);
+            if (!JSONBIN_ID) {
+                const id = prompt('请设置 jsonbin.io 的 Bin ID：\n（创建 Bin 后 URL 中的那串字符，如: 1234567890abcdef）');
+                if (id) {
+                    localStorage.setItem('jsonbin_id', id.trim());
+                }
             }
-            return new TextDecoder('utf-8').decode(bytes);
+            return !!(JSONBIN_KEY && JSONBIN_ID);
         }
 
-        // ========== GitHub API 读写 ==========
-        async function loadFromGitHub() {
+        // ========== jsonbin.io API 读写 ==========
+        async function loadFromCloud() {
+            if (!JSONBIN_KEY || !JSONBIN_ID) return null;
             try {
-                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${DATA_FILE}`;
-                const resp = await fetch(url, {
-                    headers: GITHUB_TOKEN ? { 'Authorization': `token ${GITHUB_TOKEN}` } : {}
+                const resp = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}/latest`, {
+                    headers: { 'X-Master-Key': JSONBIN_KEY }
                 });
                 if (!resp.ok) throw new Error('加载失败');
-                const data = await resp.json();
-                const content = JSON.parse(base64ToUtf8(data.content));
-                return { data, sha: data.sha, content };
+                const result = await resp.json();
+                return result.record;
             } catch (e) {
-                console.error('从 GitHub 加载数据失败:', e);
+                console.error('从云端加载数据失败:', e);
                 return null;
             }
         }
 
-        async function saveToGitHub(content) {
-            if (!ensureToken()) {
-                alert('需要设置 GitHub Token 才能保存数据！');
+        async function saveToCloud(content) {
+            if (!ensureJsonBinConfig()) {
+                alert('需要设置 jsonbin.io 的 Key 和 Bin ID 才能保存数据！');
                 return false;
             }
             try {
-                // 先获取当前文件 sha
-                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${DATA_FILE}`;
-                const getResp = await fetch(url, {
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
-                });
-                if (!getResp.ok) throw new Error('获取文件信息失败');
-                const fileInfo = await getResp.json();
-                const sha = fileInfo.sha;
-
-                // 更新文件
-                const contentBase64 = utf8ToBase64(JSON.stringify(content, null, 2));
-                const putResp = await fetch(url, {
+                const resp = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}`, {
                     method: 'PUT',
                     headers: {
-                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'X-Master-Key': JSONBIN_KEY,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        message: '更新菜品数据',
-                        content: contentBase64,
-                        sha: sha
-                    })
+                    body: JSON.stringify(content)
                 });
-                if (!putResp.ok) {
-                    const err = await putResp.json();
-                    throw new Error(err.message || '保存失败');
-                }
+                if (!resp.ok) throw new Error('保存失败');
                 return true;
             } catch (e) {
-                console.error('保存到 GitHub 失败:', e);
+                console.error('保存到云端失败:', e);
                 alert('保存失败：' + e.message);
                 return false;
             }
@@ -494,16 +458,16 @@
         let currentTab = 'menu';
 
         async function loadData() {
-            // 先从 GitHub 加载
-            const result = await loadFromGitHub();
-            if (result && result.content) {
-                categories = result.content.categories || [];
-                dishes = result.content.dishes || [];
-                todayList = result.content.today || [];
+            // 先从云端加载
+            const result = await loadFromCloud();
+            if (result) {
+                categories = result.categories || [];
+                dishes = result.dishes || [];
+                todayList = result.today || [];
                 if (categories.length > 0) currentCategory = categories[0];
                 return;
             }
-            // GitHub 加载失败，降级到 localStorage
+            // 云端加载失败，降级到 localStorage
             categories = JSON.parse(localStorage.getItem('categories') || 'null') || ['素炒', '炒菜', '炖菜'];
             dishes = JSON.parse(localStorage.getItem('dishes') || 'null') || [];
             todayList = JSON.parse(localStorage.getItem('today') || 'null') || [];
@@ -512,13 +476,13 @@
 
         async function persistData() {
             const data = { categories, dishes, today: todayList };
-            const ok = await saveToGitHub(data);
+            const ok = await saveToCloud(data);
             if (!ok) {
                 // 降级到 localStorage
                 localStorage.setItem('categories', JSON.stringify(categories));
                 localStorage.setItem('dishes', JSON.stringify(dishes));
                 localStorage.setItem('today', JSON.stringify(todayList));
-                alert('⚠️ 保存到云端失败，已暂存到本地。请检查 Token 设置。');
+                alert('⚠️ 保存到云端失败，已暂存到本地。请检查 jsonbin.io 配置。');
             }
         }
 
