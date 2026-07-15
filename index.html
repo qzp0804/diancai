@@ -673,7 +673,7 @@
                 dishes = dishes.filter(d => d.id !== id);
                 todayList = todayList.filter(t => t !== id);
                 saveAll();
-                showToast('已删除（数据已保存到本地）');
+                showToast('删除成功 ✓');
                 renderContent();
             });
         }
@@ -724,7 +724,7 @@
                 }
                 // 图片数据存 localStorage，刷新不丢失
                 saveAll();
-                showToast('已保存（数据在本地，刷新不丢）');
+                showToast('保存成功 ✓');
                 closeModal('addModal');
                 editingDishId = null;
                 currentCategory = category;
@@ -968,7 +968,7 @@
             const t = document.createElement('div');
             t.id = 'toast'; t.className = 'toast'; t.textContent = msg;
             document.body.appendChild(t);
-            toastTimer = setTimeout(() => t.remove(), 2500);
+            toastTimer = setTimeout(() => t.remove(), 3000);
         }
 
         // ========== 启动 ==========
