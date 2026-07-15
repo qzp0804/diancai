@@ -408,6 +408,16 @@
             return !!GITHUB_TOKEN;
         }
 
+        // 可靠的 UTF-8 Base64 编码
+        function utf8ToBase64(str) {
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+        }
+
+        // 可靠的 UTF-8 Base64 解码
+        function base64ToUtf8(str) {
+            return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+        }
+
         // ========== GitHub API 读写 ==========
         async function loadFromGitHub() {
             try {
@@ -417,7 +427,7 @@
                 });
                 if (!resp.ok) throw new Error('加载失败');
                 const data = await resp.json();
-                const content = JSON.parse(atob(data.content));
+                const content = JSON.parse(base64ToUtf8(data.content));
                 return { data, sha: data.sha, content };
             } catch (e) {
                 console.error('从 GitHub 加载数据失败:', e);
@@ -441,7 +451,7 @@
                 const sha = fileInfo.sha;
 
                 // 更新文件
-                const contentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(content, null, 2))));
+                const contentBase64 = utf8ToBase64(JSON.stringify(content, null, 2));
                 const putResp = await fetch(url, {
                     method: 'PUT',
                     headers: {
