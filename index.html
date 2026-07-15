@@ -231,7 +231,6 @@
             border: none;
         }
 
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -332,11 +331,27 @@
             from { opacity: 0; transform: translateX(-50%) translateY(10px); }
             to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
+
+        /* 导出提示 */
+        .export-tip {
+            display: none;
+            background: #fffbe6;
+            border: 1px solid #ffe58f;
+            padding: 8px 16px;
+            font-size: 12px;
+            color: #ad6800;
+            text-align: center;
+            cursor: pointer;
+        }
+        .export-tip.show { display: block; }
     </style>
 </head>
 <body>
     <div class="app">
         <div class="header">
+            <div class="export-tip" id="exportTip" onclick="exportData()">
+                ⚠️ 有未同步的修改，点击此处导出数据文件
+            </div>
             <div class="header-top">
                 <div class="avatar">🐰</div>
                 <div class="title-area">
@@ -344,9 +359,10 @@
                     <p>给糖小宝准备的菜单~</p>
                 </div>
                 <div class="header-actions">
+                    <button class="btn-sm" id="btnExport" onclick="exportData()">导出数据</button>
                     <button class="btn-sm" id="btnManage" onclick="openManage()">分类</button>
                     <button class="btn-sm primary" id="btnAdd" onclick="openAdd()">添加菜品</button>
-                    <button class="btn-sm" id="btnExit" onclick="exitAdmin()" style="border-color:#ff6b6b;color:#ff6b6b;">退出管理</button>
+                    <button class="btn-sm" id="btnExit" onclick="exitAdmin()" style="border-color:#ff6b6b;color:#ff6b6b;">退出</button>
                 </div>
             </div>
             <div class="tabs">
@@ -391,6 +407,7 @@
                 <label class="btn-upload">📷 选择图片<input type="file" id="dishImageFile" accept="image/*" onchange="previewImage(this)"></label>
                 <img class="image-preview" id="imagePreview" src="">
                 <input type="text" id="dishImage" placeholder="或填写图片URL" style="margin-top:8px;">
+                <small style="color:#999;">图片会转为base64存储在本地，刷新不丢失</small>
             </div>
             <div class="modal-actions">
                 <button class="btn" onclick="closeModal('addModal')">取消</button>
@@ -417,7 +434,8 @@
         const GITHUB_REPO = 'diancai';
         const DATA_FILE = 'data.json';
         const ORDERS_FILE = 'orders.json';
-        const ADMIN_PASSWORD = 'laoda520'; // 管理密码，你可以改
+        const ADMIN_PASSWORD = 'laoda520';
+        const STORAGE_KEY = 'app_data'; // localStorage 主键
         let GITHUB_TOKEN = localStorage.getItem('github_token') || '';
 
         // ========== 状态 ==========
@@ -431,13 +449,15 @@
         let editingDishId = null;
         let titleClickCount = 0;
         let titleClickTimer = null;
+        let dataDirty = false; // 标记是否有未同步的修改
 
-        // ========== 管理员入口：连点标题5次 ==========
+        // ========== 管理员入口 ==========
         function onTitleClick() {
             titleClickCount++;
             if (titleClickCount >= 5) {
                 titleClickCount = 0;
                 if (!isAdmin) enterAdmin();
+                else exitAdmin();
             }
             clearTimeout(titleClickTimer);
             titleClickTimer = setTimeout(() => { titleClickCount = 0; }, 2000);
@@ -445,16 +465,14 @@
 
         function enterAdmin() {
             const pw = prompt('请输入管理密码：');
-            if (pw !== ADMIN_PASSWORD) {
-                showToast('密码错误');
-                return;
-            }
+            if (pw !== ADMIN_PASSWORD) { showToast('密码错误'); return; }
             isAdmin = true;
             document.getElementById('adminBadge').classList.add('show');
             document.getElementById('btnManage').classList.add('show');
             document.getElementById('btnAdd').classList.add('show');
+            document.getElementById('btnExport').classList.add('show');
             document.getElementById('btnExit').classList.add('show');
-            showToast('已进入管理模式');
+            showToast('已进入管理模式（连点标题5次可退出）');
             renderContent();
         }
 
@@ -463,90 +481,83 @@
             document.getElementById('adminBadge').classList.remove('show');
             document.getElementById('btnManage').classList.remove('show');
             document.getElementById('btnAdd').classList.remove('show');
+            document.getElementById('btnExport').classList.remove('show');
             document.getElementById('btnExit').classList.remove('show');
+            if (dataDirty) {
+                document.getElementById('exportTip').classList.add('show');
+            }
             showToast('已退出管理模式');
             renderContent();
         }
 
-        // ========== 加载数据 ==========
-        async function loadData() {
-            try {
-                const resp = await fetch('data.json?t=' + Date.now());
-                if (!resp.ok) throw new Error('加载失败');
-                const data = await resp.json();
-                categories = data.categories || [];
-                dishes = data.dishes || [];
-                if (categories.length > 0 && !currentCategory) currentCategory = categories[0];
-            } catch (e) {
-                console.error('加载失败:', e);
+        // ========== 数据持久化：localStorage 为主 ==========
+        function saveAll() {
+            const data = { categories, dishes, today: todayList };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            dataDirty = true;
+            document.getElementById('exportTip').classList.add('show');
+        }
+
+        function loadAll() {
+            // 1. 优先从 localStorage 加载（最新数据）
+            const local = localStorage.getItem(STORAGE_KEY);
+            if (local) {
+                try {
+                    const data = JSON.parse(local);
+                    categories = data.categories || [];
+                    dishes = data.dishes || [];
+                    todayList = data.today || [];
+                    if (categories.length > 0) currentCategory = categories[0];
+                    dataDirty = false;
+                    document.getElementById('exportTip').classList.remove('show');
+                } catch (e) { /* 损坏则从 data.json 加载 */ }
             }
-            todayList = JSON.parse(localStorage.getItem('today') || '[]');
+
+            // 2. localStorage 为空时从 data.json 加载（首次使用）
+            if (categories.length === 0) {
+                loadFromJson();
+            }
+
+            // 3. 购物车从独立 key 加载
             cart = JSON.parse(localStorage.getItem('cart') || '{}');
             Object.keys(cart).forEach(id => {
                 if (!dishes.find(d => d.id === parseInt(id))) delete cart[id];
             });
-            saveLocal();
-        }
-
-        function saveLocal() {
-            localStorage.setItem('today', JSON.stringify(todayList));
             localStorage.setItem('cart', JSON.stringify(cart));
         }
 
-        // ========== 确保 Token ==========
-        function ensureToken() {
-            if (!GITHUB_TOKEN) {
-                const t = prompt('需要 GitHub Token（已微信发你）：');
-                if (t) {
-                    GITHUB_TOKEN = t.trim();
-                    localStorage.setItem('github_token', GITHUB_TOKEN);
-                    return true;
-                }
-                return false;
+        async function loadFromJson() {
+            try {
+                const resp = await fetch('data.json?t=' + Date.now());
+                if (!resp.ok) return;
+                const data = await resp.json();
+                categories = data.categories || [];
+                dishes = data.dishes || [];
+                todayList = data.today || [];
+                if (categories.length > 0) currentCategory = categories[0];
+                // 首次加载，存到 localStorage
+                saveAll();
+                dataDirty = false;
+                document.getElementById('exportTip').classList.remove('show');
+            } catch (e) {
+                console.error('加载 data.json 失败:', e);
             }
-            return true;
         }
 
-        // ========== 保存 data.json 到 GitHub ==========
-        async function saveDataToGitHub() {
-            if (!ensureToken()) return false;
-            try {
-                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${DATA_FILE}`;
-                const getResp = await fetch(url, {
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
-                });
-                if (!getResp.ok) throw new Error('获取文件失败');
-                const fileInfo = await getResp.json();
-                const sha = fileInfo.sha;
-
-                const jsonStr = JSON.stringify({ categories, dishes, today: todayList }, null, 2);
-                const contentBase64 = btoa(unescape(encodeURIComponent(jsonStr)));
-
-                const putResp = await fetch(url, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `token ${GITHUB_TOKEN}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        message: '更新菜品数据',
-                        content: contentBase64,
-                        sha: sha
-                    })
-                });
-                if (!putResp.ok) {
-                    if (putResp.status === 401 || putResp.status === 403) {
-                        localStorage.removeItem('github_token');
-                        GITHUB_TOKEN = '';
-                        showToast('Token 失效，请重新操作');
-                    }
-                    return false;
-                }
-                return true;
-            } catch (e) {
-                console.error('保存失败:', e);
-                return false;
-            }
+        // ========== 导出数据（下载 data.json 文件）==========
+        function exportData() {
+            const data = { categories, dishes, today: todayList };
+            const jsonStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            dataDirty = false;
+            document.getElementById('exportTip').classList.remove('show');
+            showToast('data.json 已下载，请替换本地文件后 git push');
         }
 
         // ========== 渲染 ==========
@@ -617,7 +628,7 @@
             renderContent();
         }
 
-        // ========== 菜品增删改 ==========
+        // ========== 菜品增删改（存 localStorage，刷新不丢）==========
         function openAdd() {
             if (!isAdmin) return;
             editingDishId = null;
@@ -656,9 +667,8 @@
             if (!confirm('确定删除这个菜品吗？')) return;
             dishes = dishes.filter(d => d.id !== id);
             todayList = todayList.filter(t => t !== id);
-            saveLocal();
-            const ok = await saveDataToGitHub();
-            showToast(ok ? '已删除并同步' : '已删除（本地）');
+            saveAll();
+            showToast('已删除（数据已保存到本地）');
             renderContent();
         }
 
@@ -674,7 +684,7 @@
             }
         }
 
-        async function saveDish() {
+        function saveDish() {
             if (!isAdmin) return;
             const name = document.getElementById('dishName').value.trim();
             const category = document.getElementById('dishCategory').value;
@@ -683,7 +693,7 @@
 
             if (!name) { alert('请输入菜品名称'); return; }
 
-            async function doSave(finalImage) {
+            function doSave(finalImage) {
                 if (editingDishId) {
                     const idx = dishes.findIndex(d => d.id === editingDishId);
                     if (idx >= 0) {
@@ -696,12 +706,13 @@
                         id: Date.now(),
                         name,
                         category,
-                        image: finalImage,
+                        image: finalImage || '',
                         sales: 0
                     });
                 }
-                const ok = await saveDataToGitHub();
-                showToast(ok ? '已保存并同步到云端' : '已保存（本地）');
+                // 图片数据存 localStorage，刷新不丢失
+                saveAll();
+                showToast('已保存（数据在本地，刷新不丢）');
                 closeModal('addModal');
                 editingDishId = null;
                 currentCategory = category;
@@ -759,14 +770,14 @@
             if (m) m.remove();
         }
 
-        async function addCategory() {
+        function addCategory() {
             const input = document.getElementById('newCatName');
             const name = input.value.trim();
             if (!name) return;
             if (categories.includes(name)) { alert('分类已存在'); return; }
             categories.push(name);
-            const ok = await saveDataToGitHub();
-            showToast(ok ? '已添加并同步' : '已添加（本地）');
+            saveAll();
+            showToast('分类已添加');
             renderSidebar();
             initCategorySelect();
             input.value = '';
@@ -774,11 +785,11 @@
             openManage();
         }
 
-        async function removeCategory(name) {
+        function removeCategory(name) {
             if (!confirm(`确定删除分类"${name}"？`)) return;
             categories = categories.filter(c => c !== name);
-            const ok = await saveDataToGitHub();
-            showToast(ok ? '已删除并同步' : '已删除（本地）');
+            saveAll();
+            showToast('分类已删除');
             if (currentCategory === name) currentCategory = categories[0] || '';
             renderSidebar();
             renderContent();
@@ -791,7 +802,7 @@
             if (!cart[id]) cart[id] = 0;
             cart[id] += delta;
             if (cart[id] <= 0) delete cart[id];
-            saveLocal();
+            localStorage.setItem('cart', JSON.stringify(cart));
             updateCartBadge();
             renderContent();
         }
@@ -809,7 +820,7 @@
 
         function removeToday(id) {
             todayList = todayList.filter(t => t !== id);
-            saveLocal();
+            saveAll();
             renderContent();
         }
 
@@ -848,7 +859,7 @@
             if (ids.length === 0) { closeModal('cartModal'); return; }
 
             todayList = [...new Set([...todayList, ...ids])];
-            saveLocal();
+            saveAll();
 
             const now = new Date();
             const order = {
@@ -860,24 +871,30 @@
                 })
             };
 
+            // 订单也存 localStorage
+            const orders = JSON.parse(localStorage.getItem('orders') || '[]');
+            orders.push(order);
+            localStorage.setItem('orders', JSON.stringify(orders));
+
             cart = {};
+            localStorage.setItem('cart', JSON.stringify(cart));
             updateCartBadge();
             closeModal('cartModal');
             renderContent();
 
-            const ok = await saveOrder(order);
-            if (ok) {
-                showToast('下单成功！老大已收到~');
-            } else {
-                const pending = JSON.parse(localStorage.getItem('pending_orders') || '[]');
-                pending.push(order);
-                localStorage.setItem('pending_orders', JSON.stringify(pending));
-                showToast('下单成功（本地保存）');
-            }
+            // 尝试同步订单到 GitHub
+            const ok = await saveOrderToGitHub(order);
+            showToast(ok ? '下单成功！' : '下单成功（本地保存）');
         }
 
-        async function saveOrder(order) {
-            if (!ensureToken()) return false;
+        async function saveOrderToGitHub(order) {
+            if (!GITHUB_TOKEN) {
+                const t = prompt('首次下单需设置 Token（微信已发你）：');
+                if (t) {
+                    GITHUB_TOKEN = t.trim();
+                    localStorage.setItem('github_token', GITHUB_TOKEN);
+                } else return false;
+            }
             try {
                 const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${ORDERS_FILE}`;
                 let orders = [], sha = null;
@@ -921,8 +938,24 @@
         }
 
         // ========== 启动 ==========
-        async function init() {
-            await loadData();
+        function init() {
+            loadAll();
+            // 后台尝试从 data.json 更新（不阻塞）
+            fetch('data.json?t=' + Date.now()).then(r => r.json()).then(data => {
+                const local = localStorage.getItem(STORAGE_KEY);
+                if (!local || !dataDirty) {
+                    // 没有本地修改时才覆盖
+                    categories = data.categories || [];
+                    dishes = data.dishes || [];
+                    todayList = data.today || [];
+                    if (categories.length > 0 && !currentCategory) currentCategory = categories[0];
+                    saveAll();
+                    dataDirty = false;
+                    document.getElementById('exportTip').classList.remove('show');
+                    renderSidebar();
+                    renderContent();
+                }
+            }).catch(() => {});
             renderSidebar();
             renderContent();
             updateCartBadge();
