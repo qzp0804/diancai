@@ -586,8 +586,8 @@
                 dishes = data.dishes || [];
                 todayList = data.today || [];
                 if (categories.length > 0) currentCategory = categories[0];
-                // 首次加载，存到 localStorage
-                saveAll();
+                // 缓存到 localStorage
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
                 dataDirty = false;
                 document.getElementById('exportTip').classList.remove('show');
             } catch (e) {
@@ -1018,6 +1018,9 @@
         // ========== 启动 ==========
         async function init() {
             await loadAll();
+            if (categories.length === 0 && dishes.length === 0) {
+                document.getElementById('content').innerHTML = '<div class="empty">加载失败，请下拉刷新页面重试</div>';
+            }
             renderSidebar();
             renderContent();
             updateCartBadge();
