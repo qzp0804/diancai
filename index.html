@@ -501,7 +501,7 @@
             document.getElementById('exportTip').classList.add('show');
         }
 
-        function loadAll() {
+        async function loadAll() {
             // 1. 优先从 localStorage 加载（最新数据）
             let localLoaded = false;
             const local = localStorage.getItem(STORAGE_KEY);
@@ -520,7 +520,7 @@
 
             // 2. localStorage 为空或数据为空时，从 data.json 加载
             if (!localLoaded) {
-                loadFromJson();
+                await loadFromJson();
             }
 
             // 3. 购物车从独立 key 加载
@@ -692,10 +692,16 @@
 
         function saveDish() {
             if (!isAdmin) return;
-            const name = document.getElementById('dishName').value.trim();
-            const category = document.getElementById('dishCategory').value;
-            const imageUrl = document.getElementById('dishImage').value.trim();
+            const nameEl = document.getElementById('dishName');
+            const catEl = document.getElementById('dishCategory');
+            const imgEl = document.getElementById('dishImage');
             const fileInput = document.getElementById('dishImageFile');
+
+            if (!nameEl || !catEl) { showToast('表单加载异常，请关闭重试'); return; }
+
+            const name = nameEl.value.trim();
+            const category = catEl.value;
+            const imageUrl = imgEl ? imgEl.value.trim() : '';
 
             if (!name) { showToast('请输入菜品名称'); return; }
 
@@ -726,9 +732,10 @@
                 renderContent();
             }
 
-            if (fileInput.files && fileInput.files[0]) {
+            if (fileInput && fileInput.files && fileInput.files[0]) {
                 const reader = new FileReader();
                 reader.onload = e => doSave(e.target.result);
+                reader.onerror = () => doSave(imageUrl);
                 reader.readAsDataURL(fileInput.files[0]);
             } else {
                 doSave(imageUrl);
@@ -965,31 +972,8 @@
         }
 
         // ========== 启动 ==========
-        function init() {
-            loadAll();
-            // 后台尝试从 data.json 更新（不阻塞）
-            fetch('data.json?t=' + Date.now()).then(r => r.json()).then(data => {
-                const local = localStorage.getItem(STORAGE_KEY);
-                let localHasData = false;
-                if (local) {
-                    try {
-                        const d = JSON.parse(local);
-                        localHasData = (d.categories && d.categories.length > 0) || (d.dishes && d.dishes.length > 0);
-                    } catch (e) {}
-                }
-                if (!localHasData || !dataDirty) {
-                    // 本地没有数据 或 没有本地修改时才覆盖
-                    categories = data.categories || [];
-                    dishes = data.dishes || [];
-                    todayList = data.today || [];
-                    if (categories.length > 0 && !currentCategory) currentCategory = categories[0];
-                    saveAll();
-                    dataDirty = false;
-                    document.getElementById('exportTip').classList.remove('show');
-                    renderSidebar();
-                    renderContent();
-                }
-            }).catch(() => {});
+        async function init() {
+            await loadAll();
             renderSidebar();
             renderContent();
             updateCartBadge();
