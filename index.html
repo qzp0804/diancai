@@ -388,67 +388,6 @@
     </div>
 
     <script>
-        // ========== 配置 ==========
-        // 使用 jsonbin.io 作为免费数据存储（支持 CORS，无需后端）
-        // 注册: https://jsonbin.io，获取 Master Key 和 Bin ID
-        const JSONBIN_KEY = localStorage.getItem('jsonbin_key') || '';
-        const JSONBIN_ID = localStorage.getItem('jsonbin_id') || '';
-
-        function ensureJsonBinConfig() {
-            if (!JSONBIN_KEY) {
-                const key = prompt('请设置 jsonbin.io 的 X-Master-Key：\n\n1. 访问 https://jsonbin.io 注册/登录\n2. 点击 API Keys 获取 X-Master-Key\n3. 创建一个 Bin，复制 Bin ID（URL 中的那串字符）');
-                if (key) {
-                    localStorage.setItem('jsonbin_key', key.trim());
-                }
-            }
-            if (!JSONBIN_ID) {
-                const id = prompt('请设置 jsonbin.io 的 Bin ID：\n（创建 Bin 后 URL 中的那串字符，如: 1234567890abcdef）');
-                if (id) {
-                    localStorage.setItem('jsonbin_id', id.trim());
-                }
-            }
-            return !!(JSONBIN_KEY && JSONBIN_ID);
-        }
-
-        // ========== jsonbin.io API 读写 ==========
-        async function loadFromCloud() {
-            if (!JSONBIN_KEY || !JSONBIN_ID) return null;
-            try {
-                const resp = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}/latest`, {
-                    headers: { 'X-Master-Key': JSONBIN_KEY }
-                });
-                if (!resp.ok) throw new Error('加载失败');
-                const result = await resp.json();
-                return result.record;
-            } catch (e) {
-                console.error('从云端加载数据失败:', e);
-                return null;
-            }
-        }
-
-        async function saveToCloud(content) {
-            if (!ensureJsonBinConfig()) {
-                alert('需要设置 jsonbin.io 的 Key 和 Bin ID 才能保存数据！');
-                return false;
-            }
-            try {
-                const resp = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_ID}`, {
-                    method: 'PUT',
-                    headers: {
-                        'X-Master-Key': JSONBIN_KEY,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(content)
-                });
-                if (!resp.ok) throw new Error('保存失败');
-                return true;
-            } catch (e) {
-                console.error('保存到云端失败:', e);
-                alert('保存失败：' + e.message);
-                return false;
-            }
-        }
-
         // ========== 数据管理 ==========
         let categories = [];
         let dishes = [];
@@ -456,34 +395,102 @@
         let cart = {};
         let currentCategory = '';
         let currentTab = 'menu';
+        let dataSha = ''; // GitHub 文件 sha，用于更新
 
+        // ========== 从 GitHub Pages 直接读取 data.json（零配置，任何浏览器都能读）==========
         async function loadData() {
-            // 先从云端加载
-            const result = await loadFromCloud();
-            if (result) {
-                categories = result.categories || [];
-                dishes = result.dishes || [];
-                todayList = result.today || [];
+            // 尝试从 GitHub Pages 加载（无缓存）
+            try {
+                const resp = await fetch('data.json?t=' + Date.now());
+                if (!resp.ok) throw new Error('加载失败');
+                const data = await resp.json();
+                categories = data.categories || [];
+                dishes = data.dishes || [];
+                todayList = data.today || [];
                 if (categories.length > 0) currentCategory = categories[0];
+                console.log('✅ 数据从 GitHub Pages 加载成功');
                 return;
+            } catch (e) {
+                console.log('⚠️ GitHub Pages 加载失败，尝试本地缓存');
             }
-            // 云端加载失败，降级到 localStorage
+            // 降级到 localStorage
             categories = JSON.parse(localStorage.getItem('categories') || 'null') || ['素炒', '炒菜', '炖菜'];
             dishes = JSON.parse(localStorage.getItem('dishes') || 'null') || [];
             todayList = JSON.parse(localStorage.getItem('today') || 'null') || [];
             if (categories.length > 0) currentCategory = categories[0];
         }
 
-        async function persistData() {
+        // 保存数据：存到 localStorage，同时提供下载入口
+        function persistData() {
             const data = { categories, dishes, today: todayList };
-            const ok = await saveToCloud(data);
-            if (!ok) {
-                // 降级到 localStorage
-                localStorage.setItem('categories', JSON.stringify(categories));
-                localStorage.setItem('dishes', JSON.stringify(dishes));
-                localStorage.setItem('today', JSON.stringify(todayList));
-                alert('⚠️ 保存到云端失败，已暂存到本地。请检查 jsonbin.io 配置。');
+            // 保存到 localStorage（本地备份）
+            localStorage.setItem('categories', JSON.stringify(categories));
+            localStorage.setItem('dishes', JSON.stringify(dishes));
+            localStorage.setItem('today', JSON.stringify(todayList));
+            // 提示导出
+            showExportHint(data);
+        }
+
+        // 显示导出提示
+        let exportTimeout = null;
+        function showExportHint(data) {
+            const existing = document.getElementById('exportToast');
+            if (existing) {
+                existing.remove();
+                clearTimeout(exportTimeout);
             }
+            const jsonStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const toast = document.createElement('div');
+            toast.id = 'exportToast';
+            toast.style.cssText = `
+                position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+                background:#333;color:#fff;padding:10px 20px;border-radius:20px;
+                font-size:13px;z-index:999;display:flex;align-items:center;gap:10px;
+                box-shadow:0 4px 12px rgba(0,0,0,0.3);
+            `;
+            toast.innerHTML = `
+                <span>数据已保存到本地</span>
+                <a href="${url}" download="data.json" style="color:#4ecdc4;text-decoration:underline;">📥 下载</a>
+            `;
+            document.body.appendChild(toast);
+            exportTimeout = setTimeout(() => toast.remove(), 5000);
+        }
+
+        // 在页面底部添加上传入口
+        function addUploadUI() {
+            // 底部导入按钮（在 footer 里加）
+            const footerBtns = document.querySelector('.cart-btns');
+            const uploadBtn = document.createElement('button');
+            uploadBtn.className = 'btn';
+            uploadBtn.textContent = '📥 导入';
+            uploadBtn.onclick = function() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = async function(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const text = await file.text();
+                    try {
+                        const data = JSON.parse(text);
+                        categories = data.categories || [];
+                        dishes = data.dishes || [];
+                        todayList = data.today || [];
+                        if (categories.length > 0) currentCategory = categories[0];
+                        persistData();
+                        renderSidebar();
+                        renderContent();
+                        alert('数据导入成功！');
+                    } catch (err) {
+                        alert('文件格式错误，请导入正确的 data.json 文件');
+                    }
+                };
+                input.click();
+            };
+            footerBtns.insertBefore(uploadBtn, footerBtns.firstChild);
         }
 
         // 初始化
@@ -493,6 +500,7 @@
             renderContent();
             updateCartBadge();
             initCategorySelect();
+            addUploadUI();
         }
 
         function initCategorySelect() {
@@ -563,9 +571,9 @@
         }
 
         // 从今日安排中移除
-        async function removeFromToday(id) {
+        function removeFromToday(id) {
             todayList = todayList.filter(t => t !== id);
-            await persistData();
+            persistData();
             renderContent();
         }
 
@@ -640,11 +648,11 @@
         }
 
         // 删除菜品
-        async function deleteDish(id) {
+        function deleteDish(id) {
             if (!confirm('确定删除这个菜品吗？')) return;
             dishes = dishes.filter(d => d.id !== id);
             todayList = todayList.filter(t => t !== id);
-            await persistData();
+            persistData();
             renderContent();
         }
 
@@ -683,7 +691,7 @@
         }
 
         // 保存菜品
-        async function saveDish() {
+        function saveDish() {
             const name = document.getElementById('dishName').value.trim();
             const category = document.getElementById('dishCategory').value;
             const imageUrl = document.getElementById('dishImage').value.trim();
@@ -708,7 +716,7 @@
                     };
                     dishes.push(newDish);
                 }
-                await persistData();
+                persistData();
                 closeModal('addModal');
                 editingDishId = null;
                 currentCategory = category;
@@ -738,7 +746,7 @@
         }
 
         // 确定下单
-        async function confirmOrder() {
+        function confirmOrder() {
             const ids = Object.keys(cart).map(Number);
             if (ids.length === 0) { closeModal('cartModal'); return; }
             // 增加销量
@@ -749,7 +757,7 @@
             // 保存今日安排
             const newToday = [...new Set([...todayList, ...ids])];
             todayList = newToday;
-            await persistData();
+            persistData();
             // 清空购物车
             cart = {};
             updateCartBadge();
