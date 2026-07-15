@@ -697,7 +697,7 @@
             const imageUrl = document.getElementById('dishImage').value.trim();
             const fileInput = document.getElementById('dishImageFile');
 
-            if (!name) { alert('请输入菜品名称'); return; }
+            if (!name) { showToast('请输入菜品名称'); return; }
 
             function doSave(finalImage) {
                 if (editingDishId) {
@@ -780,7 +780,7 @@
             const input = document.getElementById('newCatName');
             const name = input.value.trim();
             if (!name) return;
-            if (categories.includes(name)) { alert('分类已存在'); return; }
+            if (categories.includes(name)) { showToast('分类已存在'); return; }
             categories.push(name);
             saveAll();
             showToast('分类已添加');
