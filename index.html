@@ -271,6 +271,38 @@
             color: #999;
             font-size: 14px;
         }
+        .btn-del {
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            border: none;
+            background: #ff6b6b;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            margin-left: 8px;
+        }
+        .image-preview {
+            width: 80px; height: 80px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #eee;
+            margin: 8px 0;
+            display: none;
+        }
+        .btn-upload {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px dashed #4ecdc4;
+            background: #f0fdf9;
+            color: #4ecdc4;
+            font-size: 13px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .btn-upload input { display: none; }
+        .form-group small { color: #999; font-size: 11px; display: block; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -325,8 +357,16 @@
                 <select id="dishCategory"></select>
             </div>
             <div class="form-group">
-                <label>图片URL（可选）</label>
-                <input type="text" id="dishImage" placeholder="https://...">
+                <label>图片（可选）</label>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <label class="btn-upload">
+                        📷 选择图片
+                        <input type="file" id="dishImageFile" accept="image/*" onchange="previewImage(this)">
+                    </label>
+                    <small>或填URL</small>
+                </div>
+                <img class="image-preview" id="imagePreview" src="" alt="预览">
+                <input type="text" id="dishImage" placeholder="https://... 或留空使用本地图片">
             </div>
             <div class="modal-actions">
                 <button class="btn" onclick="closeModal('addModal')">取消</button>
@@ -457,9 +497,18 @@
                         <div class="dish-name">${dish.name}</div>
                         <div class="dish-sales">${dish.category}</div>
                     </div>
+                    <button class="btn-del" onclick="removeFromToday(${id})" title="从今日安排中移除">✕</button>
                 </div>
                 `;
             }).join('')}</div>`;
+        }
+
+        // 从今日安排中移除
+        function removeFromToday(id) {
+            let today = JSON.parse(localStorage.getItem('today') || '[]');
+            today = today.filter(t => t !== id);
+            localStorage.setItem('today', JSON.stringify(today));
+            renderContent();
         }
 
         // 选择分类
@@ -523,27 +572,57 @@
             openModal('cartModal');
         }
 
+        // 图片预览
+        function previewImage(input) {
+            const preview = document.getElementById('imagePreview');
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
         // 保存菜品
         function saveDish() {
             const name = document.getElementById('dishName').value.trim();
             const category = document.getElementById('dishCategory').value;
-            const image = document.getElementById('dishImage').value.trim();
+            const imageUrl = document.getElementById('dishImage').value.trim();
+            const fileInput = document.getElementById('dishImageFile');
             if (!name) { alert('请输入菜品名称'); return; }
-            const newDish = {
-                id: Date.now(),
-                name,
-                category,
-                image,
-                sales: 0
-            };
-            dishes.push(newDish);
-            saveData('dishes', dishes);
-            closeModal('addModal');
-            currentCategory = category;
-            renderSidebar();
-            renderContent();
-            document.getElementById('dishName').value = '';
-            document.getElementById('dishImage').value = '';
+
+            // 处理图片：优先本地图片 base64
+            function doSave(finalImage) {
+                const newDish = {
+                    id: Date.now(),
+                    name,
+                    category,
+                    image: finalImage,
+                    sales: 0
+                };
+                dishes.push(newDish);
+                saveData('dishes', dishes);
+                closeModal('addModal');
+                currentCategory = category;
+                renderSidebar();
+                renderContent();
+                document.getElementById('dishName').value = '';
+                document.getElementById('dishImage').value = '';
+                document.getElementById('dishImageFile').value = '';
+                document.getElementById('imagePreview').style.display = 'none';
+            }
+
+            if (fileInput.files && fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) { doSave(e.target.result); };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else if (imageUrl) {
+                doSave(imageUrl);
+            } else {
+                doSave('');
+            }
         }
 
         // 随机选
