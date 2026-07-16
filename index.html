@@ -504,7 +504,7 @@
         }
 
         async function loadAll() {
-            // 1. 先从 data.json 加载（GitHub Pages 上的数据最可靠）
+            // 1. 先从 data.json 加载菜品和分类
             await loadFromJson();
 
             // 2. 如果 data.json 加载失败，尝试从 localStorage 加载
@@ -515,13 +515,22 @@
                         const data = JSON.parse(local);
                         categories = data.categories || [];
                         dishes = data.dishes || [];
-                        todayList = data.today || [];
                         if (categories.length > 0) currentCategory = categories[0];
                     } catch (e) { /* ignore */ }
                 }
             }
 
-            // 3. 购物车从独立 key 加载
+            // 3. todayList 优先从 localStorage 恢复（因为 data.json 的 today 始终为空）
+            const savedToday = localStorage.getItem('today_list');
+            if (savedToday) {
+                try { todayList = JSON.parse(savedToday); } catch (e) {}
+            }
+            // 如果 local 也没有，尝试从 orders.json 加载
+            if (todayList.length === 0) {
+                await loadTodayFromOrders();
+            }
+
+            // 4. 购物车从独立 key 加载
             cart = JSON.parse(localStorage.getItem('cart') || '{}');
             Object.keys(cart).forEach(id => {
                 if (!dishes.find(d => d.id === parseInt(id))) delete cart[id];
@@ -529,6 +538,26 @@
             localStorage.setItem('cart', JSON.stringify(cart));
 
             if (categories.length > 0 && !currentCategory) currentCategory = categories[0];
+        }
+
+        async function loadTodayFromOrders() {
+            try {
+                const resp = await fetch('orders.json?t=' + Date.now());
+                if (!resp.ok) return;
+                const orders = await resp.json();
+                // 从最近的订单中提取 todayList
+                const ids = new Set();
+                orders.forEach(o => {
+                    (o.items || []).forEach(item => {
+                        const d = dishes.find(x => x.name === item.name);
+                        if (d) ids.add(d.id);
+                    });
+                });
+                if (ids.size > 0) {
+                    todayList = [...ids];
+                    localStorage.setItem('today_list', JSON.stringify(todayList));
+                }
+            } catch (e) { /* ignore */ }
         }
 
         async function loadFromJson() {
@@ -833,6 +862,7 @@
 
         function removeToday(id) {
             todayList = todayList.filter(t => t !== id);
+            localStorage.setItem('today_list', JSON.stringify(todayList));
             saveAll();
             renderContent();
         }
@@ -872,6 +902,7 @@
             if (ids.length === 0) { closeModal('cartModal'); return; }
 
             todayList = [...new Set([...todayList, ...ids])];
+            localStorage.setItem('today_list', JSON.stringify(todayList));
             saveAll();
 
             const now = new Date();
