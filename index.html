@@ -522,11 +522,10 @@
 
             // 3. todayList 优先从 localStorage 恢复（因为 data.json 的 today 始终为空）
             const savedToday = localStorage.getItem('today_list');
-            if (savedToday) {
+            if (savedToday !== null) {
                 try { todayList = JSON.parse(savedToday); } catch (e) {}
-            }
-            // 如果 local 也没有，尝试从 orders.json 加载
-            if (todayList.length === 0) {
+            } else {
+                // localStorage 没有才从 orders.json 加载（首次使用）
                 await loadTodayFromOrders();
             }
 
