@@ -498,54 +498,8 @@
             const data = { categories, dishes, today: todayList };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
             dataDirty = true;
-            // 管理模式自动写 GitHub
             if (isAdmin) {
-                saveToGitHub(data);
-            }
-        }
-
-        async function saveToGitHub(data) {
-            if (!GITHUB_TOKEN) {
-                const t = prompt('请输入 GitHub Token 以保存数据到云端：');
-                if (t) {
-                    GITHUB_TOKEN = t.trim();
-                    localStorage.setItem('github_token', GITHUB_TOKEN);
-                } else {
-                    showToast('⚠ 未设置Token，数据仅保存在本地');
-                    return;
-                }
-            }
-            try {
-                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${DATA_FILE}`;
-                let sha = null;
-                const getResp = await fetch(url, {
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
-                });
-                if (getResp.ok) {
-                    const f = await getResp.json();
-                    sha = f.sha;
-                }
-                const jsonStr = JSON.stringify(data, null, 2);
-                const b64 = btoa(unescape(encodeURIComponent(jsonStr)));
-                const body = { message: '更新菜品数据', content: b64 };
-                if (sha) body.sha = sha;
-                const putResp = await fetch(url, {
-                    method: 'PUT',
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                if (putResp.ok) {
-                    dataDirty = false;
-                    document.getElementById('exportTip').classList.remove('show');
-                    showToast('数据已同步到云端 ✓');
-                } else {
-                    if (putResp.status === 401 || putResp.status === 403) {
-                        localStorage.removeItem('github_token'); GITHUB_TOKEN = '';
-                    }
-                    showToast('⚠ 云端同步失败，数据仅保存本地');
-                }
-            } catch (e) {
-                showToast('⚠ 网络异常，数据仅保存本地');
+                document.getElementById('exportTip').classList.add('show');
             }
         }
 
@@ -719,7 +673,7 @@
                 dishes = dishes.filter(d => d.id !== id);
                 todayList = todayList.filter(t => t !== id);
                 saveAll();
-                showToast('删除成功 ✓');
+                showToast('删除成功！请记得导出 data.json 并 git push');
                 renderContent();
             });
         }
@@ -774,6 +728,7 @@
                 currentCategory = category;
                 renderSidebar();
                 renderContent();
+                showToast('保存成功！请记得导出 data.json 并 git push');
             }
 
             if (fileInput && fileInput.files && fileInput.files[0]) {
