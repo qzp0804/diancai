@@ -347,6 +347,8 @@
             cursor: pointer;
         }
         .export-tip.show { display: block; }
+        #syncStatus { font-size: 12px; color: #666; margin-top: 2px; transition: color 0.3s; }
+        #syncStatus.syncing { color: #4ecdc4; }
     </style>
 </head>
 <body>
@@ -359,7 +361,7 @@
                 <div class="avatar">🐰</div>
                 <div class="title-area" onclick="onTitleClick()">
                     <h1>老大的私房菜单<span class="admin-badge" id="adminBadge">管理</span></h1>
-                    <p>给糖小宝准备的菜单~</p>
+                    <p id="syncStatus" onclick="manualSync()" style="cursor:pointer;" title="点击手动同步订单">给糖小宝准备的菜单~</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn-sm" id="btnExport" onclick="exportData()">导出数据</button>
@@ -453,6 +455,10 @@
         let titleClickCount = 0;
         let titleClickTimer = null;
         let dataDirty = false; // 标记是否有未同步的修改
+        let lastSyncTime = null; // 最后同步时间
+        let lastOrderTimestamp = ''; // 已处理的最新订单时间戳，用于判断新订单
+        let pollTimer = null; // 轮询定时器
+        const POLL_INTERVAL = 30000; // 轮询间隔：30秒
 
         // ========== 管理员入口 ==========
         function onTitleClick() {
@@ -557,6 +563,130 @@
                     localStorage.setItem('today_list', JSON.stringify(todayList));
                 }
             } catch (e) { /* ignore */ }
+        }
+
+        // ========== 定时轮询：从 GitHub 拉取最新订单 ==========
+        function startPolling() {
+            stopPolling();
+            pollTimer = setInterval(pollOrders, POLL_INTERVAL);
+            // 启动后先拉一次
+            pollOrders();
+            updateSyncStatus();
+        }
+
+        function stopPolling() {
+            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        }
+
+        async function pollOrders() {
+            if (!GITHUB_TOKEN) {
+                updateSyncStatus('未配置Token，无法同步');
+                return;
+            }
+            try {
+                updateSyncStatus('同步中...', true);
+                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${ORDERS_FILE}`;
+                const resp = await fetch(url, {
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` },
+                    cache: 'no-store'
+                });
+                if (!resp.ok) {
+                    if (resp.status === 401 || resp.status === 403) {
+                        updateSyncStatus('Token失效，需重新设置');
+                        stopPolling();
+                    } else {
+                        updateSyncStatus('同步失败(' + resp.status + ')');
+                    }
+                    return;
+                }
+                const file = await resp.json();
+                const orders = JSON.parse(decodeURIComponent(escape(atob(file.content))));
+
+                // 对比本地 orders，找出新订单
+                const localOrders = JSON.parse(localStorage.getItem('orders') || '[]');
+                const localTimestamps = new Set(localOrders.map(o => o.timestamp));
+                const newOrders = orders.filter(o => !localTimestamps.has(o.timestamp));
+
+                if (newOrders.length > 0) {
+                    // 合并新订单到本地
+                    const merged = [...localOrders];
+                    newOrders.forEach(o => merged.push(o));
+                    // 去重并按时间排序
+                    const unique = [];
+                    const seen = new Set();
+                    merged.sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
+                    merged.forEach(o => {
+                        if (!seen.has(o.timestamp)) { seen.add(o.timestamp); unique.push(o); }
+                    });
+                    localStorage.setItem('orders', JSON.stringify(unique));
+
+                    // 更新 todayList：把新订单中的菜品加入
+                    let updated = false;
+                    newOrders.forEach(o => {
+                        (o.items || []).forEach(item => {
+                            const d = dishes.find(x => x.name === item.name);
+                            if (d && !todayList.includes(d.id)) {
+                                todayList.push(d.id);
+                                updated = true;
+                            }
+                        });
+                    });
+                    if (updated) {
+                        localStorage.setItem('today_list', JSON.stringify(todayList));
+                    }
+
+                    // 弹 toast 提醒
+                    const lastNew = newOrders[newOrders.length - 1];
+                    const itemNames = (lastNew.items || []).map(i => i.name).join('、');
+                    showToast(`🔔 新订单！${lastNew.time}：${itemNames}`, 5000);
+                    lastOrderTimestamp = lastNew.timestamp;
+
+                    // 如果正在看"今日安排"，刷新页面
+                    if (currentTab === 'today') renderContent();
+                }
+
+                lastSyncTime = new Date();
+                updateSyncStatus();
+            } catch (e) {
+                updateSyncStatus('同步异常');
+                console.error('轮询订单失败:', e);
+            }
+        }
+
+        function updateSyncStatus(msg, syncing) {
+            const el = document.getElementById('syncStatus');
+            if (!el) return;
+            if (syncing) {
+                el.textContent = msg || '同步中...';
+                el.classList.add('syncing');
+                return;
+            }
+            el.classList.remove('syncing');
+            if (msg) {
+                el.textContent = msg;
+            } else if (lastSyncTime) {
+                const t = lastSyncTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                el.textContent = `最后同步：${t}`;
+            } else if (!GITHUB_TOKEN) {
+                el.textContent = '给糖小宝准备的菜单~';
+            } else {
+                el.textContent = '给糖小宝准备的菜单~';
+            }
+        }
+
+        // 手动刷新订单（点击同步状态文字触发）
+        function manualSync() {
+            if (!GITHUB_TOKEN) {
+                const t = prompt('请输入 GitHub Token 以启用同步：');
+                if (t) {
+                    GITHUB_TOKEN = t.trim();
+                    localStorage.setItem('github_token', GITHUB_TOKEN);
+                    startPolling();
+                }
+                return;
+            }
+            pollOrders();
+            showToast('正在同步...');
         }
 
         async function loadFromJson() {
@@ -927,6 +1057,11 @@
 
             // 尝试同步订单到 GitHub
             const ok = await saveOrderToGitHub(order);
+            if (ok) {
+                lastOrderTimestamp = order.timestamp;
+                lastSyncTime = new Date();
+                updateSyncStatus();
+            }
             showToast(ok ? '下单成功！' : '下单成功（本地保存）');
         }
 
@@ -1006,9 +1141,16 @@
             if (categories.length === 0 && dishes.length === 0) {
                 document.getElementById('content').innerHTML = '<div class="empty">加载失败，请下拉刷新页面重试</div>';
             }
+            // 记录本地已有订单的最新时间戳
+            const localOrders = JSON.parse(localStorage.getItem('orders') || '[]');
+            if (localOrders.length > 0) {
+                lastOrderTimestamp = localOrders[localOrders.length - 1].timestamp || '';
+            }
             renderSidebar();
             renderContent();
             updateCartBadge();
+            // 启动定时轮询
+            startPolling();
         }
         init();
     </script>
