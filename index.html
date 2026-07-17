@@ -5,212 +5,312 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>私房菜菜单</title>
     <style>
+        :root {
+            --primary: #e07c5a;
+            --primary-light: #f5c6b3;
+            --primary-bg: #fdf3ee;
+            --accent: #f0a58c;
+            --bg: #fefaf6;
+            --card-bg: #ffffff;
+            --text: #4a3728;
+            --text-light: #9b7b6b;
+            --text-muted: #c4a99a;
+            --border: #f0e3da;
+            --danger: #e07474;
+            --success: #7bb89f;
+            --shadow: 0 2px 12px rgba(180, 140, 120, 0.08);
+            --shadow-hover: 0 4px 20px rgba(180, 140, 120, 0.15);
+            --radius: 16px;
+            --radius-sm: 10px;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
-            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+            background: var(--bg);
+            height: 100vh; height: 100dvh;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+
+        /* Header */
+        .header {
+            background: linear-gradient(160deg, #fde8df 0%, #fdf1ea 30%, #fef8f4 70%, #fde8df 100%);
+            padding: 14px 16px 10px;
+            flex-shrink: 0;
+            position: relative;
             overflow: hidden;
         }
-        .app { display: flex; flex-direction: column; height: 100vh; }
-
-        .header {
-            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-            padding: 12px 16px;
-            flex-shrink: 0;
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -30px; right: -20px;
+            width: 100px; height: 100px;
+            background: radial-gradient(circle, rgba(240,165,140,0.15) 0%, transparent 70%);
+            border-radius: 50%;
         }
         .header-top {
             display: flex;
             align-items: flex-start;
-            gap: 12px;
-            margin-bottom: 8px;
+            gap: 10px;
+            margin-bottom: 6px;
             flex-wrap: wrap;
+            position: relative;
+            z-index: 1;
         }
         .avatar {
-            width: 48px; height: 48px;
+            width: 44px; height: 44px;
             border-radius: 50%;
-            background: #fff;
+            background: linear-gradient(135deg, #fde8df, #fef8f4);
             display: flex; align-items: center; justify-content: center;
-            font-size: 24px;
+            font-size: 22px;
             flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(200,150,120,0.12);
         }
-        .title-area { flex: 1; min-width: 140px; cursor: pointer; user-select: none; -webkit-user-select: none; }
-        .title-area h1 { font-size: 18px; color: #333; word-break: keep-all; pointer-events: none; }
-        .title-area p { font-size: 12px; color: #666; margin-top: 2px; }
+        .title-area {
+            flex: 1; min-width: 120px;
+            cursor: pointer; user-select: none; -webkit-user-select: none;
+        }
+        .title-area h1 {
+            font-size: 17px;
+            color: var(--text);
+            word-break: keep-all;
+            pointer-events: none;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .title-area p {
+            font-size: 11px;
+            color: var(--text-light);
+            margin-top: 1px;
+            transition: color 0.3s;
+        }
+        .title-area p.syncing { color: var(--primary); }
         .admin-badge {
             display: none;
-            background: #ff6b6b;
+            background: var(--primary);
             color: #fff;
             font-size: 10px;
             padding: 2px 8px;
             border-radius: 10px;
             margin-left: 6px;
             vertical-align: middle;
+            font-weight: 500;
         }
         .admin-badge.show { display: inline-block; }
         .header-actions {
             display: flex;
-            gap: 6px;
+            gap: 5px;
             align-items: center;
             flex-wrap: wrap;
         }
         .btn-sm {
-            padding: 4px 12px;
+            padding: 5px 12px;
             border-radius: 14px;
-            border: 1px solid #4ecdc4;
-            background: #fff;
-            color: #4ecdc4;
+            border: 1.5px solid var(--primary-light);
+            background: rgba(255,255,255,0.7);
+            color: var(--primary);
             font-size: 12px;
             cursor: pointer;
             display: none;
+            font-weight: 500;
+            transition: all 0.2s;
+            backdrop-filter: blur(4px);
         }
+        .btn-sm:active { transform: scale(0.95); }
         .btn-sm.primary {
-            background: #4ecdc4;
+            background: var(--primary);
             color: #fff;
             border: none;
         }
         .btn-sm.show { display: inline-block; }
         .tabs {
             display: flex;
-            gap: 20px;
-            margin-top: 8px;
+            gap: 24px;
+            margin-top: 6px;
+            position: relative;
+            z-index: 1;
         }
         .tab {
             padding: 6px 0;
-            font-size: 15px;
-            color: #666;
+            font-size: 14px;
+            color: var(--text-muted);
             cursor: pointer;
             position: relative;
+            font-weight: 500;
+            transition: color 0.2s;
         }
-        .tab.active { color: #333; font-weight: 600; }
+        .tab.active { color: var(--text); font-weight: 700; }
         .tab.active::after {
             content: '';
             position: absolute;
             bottom: 0; left: 0; right: 0;
             height: 3px;
-            background: #4ecdc4;
+            background: var(--primary);
             border-radius: 2px;
         }
 
+        /* Main */
         .main {
             flex: 1;
             display: flex;
             overflow: hidden;
         }
         .sidebar {
-            width: 80px;
-            background: #fff;
+            width: 76px;
+            background: var(--card-bg);
             overflow-y: auto;
             flex-shrink: 0;
-            border-right: 1px solid #eee;
+            border-right: 1px solid var(--border);
+            scrollbar-width: none;
         }
+        .sidebar::-webkit-scrollbar { display: none; }
         .category {
-            padding: 16px 8px;
+            padding: 14px 6px;
             text-align: center;
-            font-size: 13px;
-            color: #666;
+            font-size: 12px;
+            color: var(--text-light);
             cursor: pointer;
             border-left: 3px solid transparent;
+            transition: all 0.2s;
+            font-weight: 500;
         }
         .category.active {
-            background: #f5f5f5;
-            color: #4ecdc4;
-            border-left-color: #4ecdc4;
-            font-weight: 600;
+            background: var(--primary-bg);
+            color: var(--primary);
+            border-left-color: var(--primary);
+            font-weight: 700;
         }
         .content {
             flex: 1;
             overflow-y: auto;
-            padding: 12px;
+            padding: 10px 12px;
+            scroll-behavior: smooth;
         }
-        .dish-list { display: flex; flex-direction: column; gap: 12px; }
+        .content::-webkit-scrollbar { width: 3px; }
+        .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        .dish-list { display: flex; flex-direction: column; gap: 10px; }
         .dish-card {
-            background: #fff;
-            border-radius: 12px;
-            padding: 12px;
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 10px 12px;
             display: flex;
-            gap: 12px;
+            gap: 10px;
             align-items: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            box-shadow: var(--shadow);
+            transition: box-shadow 0.2s;
         }
+        .dish-card:active { box-shadow: var(--shadow-hover); }
         .dish-img {
-            width: 80px; height: 80px;
-            border-radius: 8px;
+            width: 72px; height: 72px;
+            border-radius: var(--radius-sm);
             object-fit: cover;
-            background: #eee;
+            background: linear-gradient(135deg, #fdf3ee, #fef8f4);
             flex-shrink: 0;
+            border: 1px solid var(--border);
+        }
+        .dish-img-placeholder {
+            width: 72px; height: 72px;
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, #fde8df, #fdf3ee);
+            flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px;
+            color: var(--accent);
         }
         .dish-info { flex: 1; min-width: 0; }
-        .dish-name { font-size: 15px; font-weight: 600; color: #333; }
-        .dish-sales { font-size: 12px; color: #999; margin-top: 4px; }
+        .dish-name { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.3; }
+        .dish-sales { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
         .dish-action {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+            flex-shrink: 0;
         }
         .btn-add {
-            width: 28px; height: 28px;
+            width: 30px; height: 30px;
             border-radius: 50%;
-            background: #4ecdc4;
+            background: var(--primary);
             color: #fff;
             border: none;
             font-size: 18px;
             cursor: pointer;
             display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s;
+            box-shadow: 0 2px 6px rgba(224,124,90,0.25);
         }
+        .btn-add:active { transform: scale(0.9); background: #d0694a; }
         .btn-minus {
             width: 24px; height: 24px;
             border-radius: 50%;
-            border: 1px solid #ccc;
-            background: #fff;
-            color: #666;
+            border: 1.5px solid var(--border);
+            background: var(--card-bg);
+            color: var(--text-light);
             cursor: pointer;
             display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+            transition: all 0.15s;
         }
-        .count { font-size: 14px; color: #333; min-width: 20px; text-align: center; }
+        .btn-minus:active { background: var(--primary-bg); border-color: var(--primary-light); }
+        .count {
+            font-size: 14px;
+            color: var(--text);
+            min-width: 18px;
+            text-align: center;
+            font-weight: 600;
+        }
         .admin-btn {
             display: none;
-            width: 22px; height: 22px;
+            width: 24px; height: 24px;
             border-radius: 50%;
             border: none;
             font-size: 12px;
             cursor: pointer;
+            transition: all 0.15s;
         }
+        .admin-btn:active { transform: scale(0.9); }
         .admin-btn.show { display: flex; align-items: center; justify-content: center; }
-        .btn-edit { background: #e8f5e9; color: #4caf50; }
-        .btn-del { background: #ffebee; color: #f44336; }
+        .btn-edit { background: #eaf6ed; color: var(--success); }
+        .btn-del { background: #fdf0f0; color: var(--danger); }
 
+        /* Footer */
         .footer {
-            background: #fff;
-            border-top: 1px solid #eee;
-            padding: 8px 16px;
-            padding-bottom: max(12px, env(safe-area-inset-bottom));
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            padding: 8px 14px;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
             flex-shrink: 0;
         }
         .cart-bar {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
         .cart-icon {
-            width: 48px; height: 48px;
+            width: 46px; height: 46px;
             border-radius: 50%;
-            background: #4ecdc4;
+            background: var(--primary);
             color: #fff;
             display: flex; align-items: center; justify-content: center;
             font-size: 20px;
             position: relative;
             cursor: pointer;
+            box-shadow: 0 2px 8px rgba(224,124,90,0.3);
+            transition: transform 0.15s;
         }
+        .cart-icon:active { transform: scale(0.9); }
         .cart-badge {
             position: absolute;
             top: -4px; right: -4px;
-            background: #ff6b6b;
+            background: var(--danger);
             color: #fff;
-            font-size: 11px;
-            width: 18px; height: 18px;
-            border-radius: 50%;
+            font-size: 10px;
+            min-width: 18px; height: 18px;
+            border-radius: 9px;
             display: flex; align-items: center; justify-content: center;
+            font-weight: 600;
+            padding: 0 4px;
         }
         .cart-btns {
             flex: 1;
@@ -219,50 +319,82 @@
         }
         .btn {
             flex: 1;
-            padding: 12px;
+            padding: 11px;
             border-radius: 24px;
-            border: 1px solid #4ecdc4;
-            background: #fff;
-            color: #4ecdc4;
+            border: 1.5px solid var(--primary-light);
+            background: var(--card-bg);
+            color: var(--primary);
             font-size: 14px;
             cursor: pointer;
             text-align: center;
+            font-weight: 600;
+            transition: all 0.15s;
         }
+        .btn:active { background: var(--primary-bg); }
         .btn.primary {
-            background: #4ecdc4;
+            background: var(--primary);
             color: #fff;
             border: none;
+            box-shadow: 0 2px 8px rgba(224,124,90,0.25);
         }
+        .btn.primary:active { background: #d0694a; }
 
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(74,55,40,0.35);
             z-index: 100;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            backdrop-filter: blur(2px);
         }
         .modal.show { display: flex; }
         .modal-box {
-            background: #fff;
-            border-radius: 16px;
-            padding: 20px;
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 22px;
             width: 100%;
-            max-width: 360px;
-            max-height: 80vh;
+            max-width: 340px;
+            max-height: 78vh;
             overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(74,55,40,0.15);
+            animation: modalIn 0.25s ease;
         }
-        .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .modal-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 14px;
+        }
         .form-group { margin-bottom: 12px; }
-        .form-group label { display: block; font-size: 14px; color: #666; margin-bottom: 4px; }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-light);
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
         .form-group input, .form-group select {
             width: 100%;
             padding: 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
             font-size: 14px;
+            background: var(--bg);
+            color: var(--text);
+            transition: border-color 0.2s;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--accent);
         }
         .modal-actions {
             display: flex;
@@ -271,103 +403,109 @@
         }
         .modal-actions .btn { padding: 10px; }
 
-        .cart-modal .modal-box {
-            display: flex;
-            flex-direction: column;
-        }
         .cart-items {
             flex: 1;
             overflow-y: auto;
-            margin: 12px 0;
+            margin: 8px 0 12px;
+            max-height: 40vh;
         }
         .cart-item {
             display: flex;
             align-items: center;
             padding: 10px 0;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border);
+            gap: 8px;
         }
-        .cart-item-name { flex: 1; font-size: 14px; }
-        .cart-item-count { color: #999; font-size: 13px; margin-right: 12px; }
+        .cart-item-name { flex: 1; font-size: 14px; color: var(--text); font-weight: 500; }
+        .cart-item-count { color: var(--text-muted); font-size: 13px; min-width: 28px; text-align: center; }
 
         .empty {
             text-align: center;
-            padding: 40px;
-            color: #999;
+            padding: 48px 20px;
+            color: var(--text-muted);
             font-size: 14px;
         }
+        .empty-icon { font-size: 48px; margin-bottom: 10px; opacity: 0.6; }
+
         .btn-upload {
             display: inline-block;
-            padding: 8px 16px;
+            padding: 8px 14px;
             border-radius: 8px;
-            border: 1px dashed #4ecdc4;
-            background: #f0fdf9;
-            color: #4ecdc4;
+            border: 1.5px dashed var(--accent);
+            background: var(--primary-bg);
+            color: var(--primary);
             font-size: 13px;
             cursor: pointer;
+            transition: all 0.2s;
         }
+        .btn-upload:active { background: #fde8df; }
         .btn-upload input { display: none; }
         .image-preview {
-            width: 80px; height: 80px;
-            border-radius: 8px;
+            width: 72px; height: 72px;
+            border-radius: var(--radius-sm);
             object-fit: cover;
-            background: #eee;
+            background: var(--primary-bg);
             margin: 8px 0;
             display: none;
+            border: 1px solid var(--border);
         }
+        .form-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block; }
 
+        /* Toast */
         .toast {
             position: fixed;
-            bottom: 80px;
+            bottom: 90px;
             left: 50%;
             transform: translateX(-50%);
-            background: #333;
+            background: var(--text);
             color: #fff;
-            padding: 8px 16px;
+            padding: 10px 18px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 13px;
             z-index: 999;
             white-space: nowrap;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            animation: fadeIn 0.3s ease;
+            box-shadow: 0 4px 16px rgba(74,55,40,0.25);
+            animation: toastIn 0.3s ease;
+            font-weight: 500;
         }
-        @keyframes fadeIn {
+        @keyframes toastIn {
             from { opacity: 0; transform: translateX(-50%) translateY(10px); }
             to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
 
-        /* 导出提示 */
-        .export-tip {
-            display: none;
-            background: #fffbe6;
-            border: 1px solid #ffe58f;
-            padding: 8px 16px;
-            font-size: 12px;
-            color: #ad6800;
-            text-align: center;
-            cursor: pointer;
+        /* Loading */
+        .loading-spinner {
+            display: inline-block;
+            width: 18px; height: 18px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
         }
-        .export-tip.show { display: block; }
-        #syncStatus { font-size: 12px; color: #666; margin-top: 2px; transition: color 0.3s; }
-        #syncStatus.syncing { color: #4ecdc4; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Responsive tweaks */
+        @media (min-width: 480px) {
+            .dish-img, .dish-img-placeholder { width: 88px; height: 88px; }
+            .sidebar { width: 88px; }
+        }
     </style>
 </head>
 <body>
     <div class="app">
         <div class="header">
-            <div class="export-tip" id="exportTip" onclick="exportData()">
-                ⚠️ 有未同步的修改，点击此处导出数据文件
-            </div>
             <div class="header-top">
                 <div class="avatar">🐰</div>
                 <div class="title-area" onclick="onTitleClick()">
                     <h1>老大的私房菜单<span class="admin-badge" id="adminBadge">管理</span></h1>
-                    <p id="syncStatus" onclick="manualSync()" style="cursor:pointer;" title="点击手动同步订单">给糖小宝准备的菜单~</p>
+                    <p id="syncStatus" onclick="manualRefresh()" style="cursor:pointer;" title="点击刷新数据">给糖小宝准备的菜单~</p>
                 </div>
                 <div class="header-actions">
-                    <button class="btn-sm" id="btnExport" onclick="exportData()">导出数据</button>
                     <button class="btn-sm" id="btnManage" onclick="openManage()">分类</button>
                     <button class="btn-sm primary" id="btnAdd" onclick="openAdd()">添加菜品</button>
-                    <button class="btn-sm" id="btnExit" onclick="exitAdmin()" style="border-color:#ff6b6b;color:#ff6b6b;">退出</button>
+                    <button class="btn-sm" id="btnExit" onclick="exitAdmin()" style="border-color:var(--danger);color:var(--danger);">退出</button>
                 </div>
             </div>
             <div class="tabs">
@@ -388,7 +526,7 @@
                     <span class="cart-badge" id="cartBadge" style="display:none">0</span>
                 </div>
                 <div class="cart-btns">
-                    <button class="btn" onclick="randomPick()">随机选</button>
+                    <button class="btn" onclick="randomPick()">🎲 随机选</button>
                     <button class="btn primary" onclick="openCart()">选好了</button>
                 </div>
             </div>
@@ -412,7 +550,7 @@
                 <label class="btn-upload">📷 选择图片<input type="file" id="dishImageFile" accept="image/*" onchange="previewImage(this)"></label>
                 <img class="image-preview" id="imagePreview" src="">
                 <input type="text" id="dishImage" placeholder="或填写图片URL" style="margin-top:8px;">
-                <small style="color:#999;">图片会转为base64存储在本地，刷新不丢失</small>
+                <span class="form-hint">图片自动转为Base64存储</span>
             </div>
             <div class="modal-actions">
                 <button class="btn" onclick="closeModal('addModal')">取消</button>
@@ -422,43 +560,61 @@
     </div>
 
     <!-- 购物车弹窗 -->
-    <div class="modal cart-modal" id="cartModal">
+    <div class="modal" id="cartModal">
         <div class="modal-box">
             <div class="modal-title">已选菜品</div>
             <div class="cart-items" id="cartItems"></div>
             <div class="modal-actions">
                 <button class="btn" onclick="closeModal('cartModal')">继续选</button>
-                <button class="btn primary" onclick="confirmOrder()">确定下单</button>
+                <button class="btn primary" id="btnConfirmOrder" onclick="confirmOrder()">确定下单</button>
             </div>
         </div>
     </div>
 
     <script>
         // ========== 配置 ==========
-        const GITHUB_OWNER = 'qzp0804';
-        const GITHUB_REPO = 'diancai';
-        const DATA_FILE = 'data.json';
-        const ORDERS_FILE = 'orders.json';
-        const ADMIN_PASSWORD = 'laoda520';
-        const STORAGE_KEY = 'app_data'; // localStorage 主键
-        let GITHUB_TOKEN = localStorage.getItem('github_token') || '';
+        const API_BASE = localStorage.getItem('api_base') || 'https://sifangcai-api.1247540213.workers.dev';
+        const STORAGE_ADMIN = 'admin_token';
+        const STORAGE_CART = 'cart';
+        let adminToken = localStorage.getItem(STORAGE_ADMIN) || '';
 
         // ========== 状态 ==========
         let categories = [];
         let dishes = [];
         let todayList = [];
         let cart = {};
-        let currentCategory = '';
+        let currentCategoryId = null;
         let currentTab = 'menu';
         let isAdmin = false;
         let editingDishId = null;
         let titleClickCount = 0;
         let titleClickTimer = null;
-        let dataDirty = false; // 标记是否有未同步的修改
-        let lastSyncTime = null; // 最后同步时间
-        let lastOrderTimestamp = ''; // 已处理的最新订单时间戳，用于判断新订单
-        let pollTimer = null; // 轮询定时器
-        const POLL_INTERVAL = 30000; // 轮询间隔：30秒
+
+        // ========== API 封装 ==========
+        async function api(path, options = {}) {
+            const headers = { 'Content-Type': 'application/json' };
+            if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+            const resp = await fetch(API_BASE + path, { headers, ...options });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || '请求失败');
+            return data;
+        }
+
+        async function apiGet(path) {
+            return api(path);
+        }
+
+        async function apiPost(path, body) {
+            return api(path, { method: 'POST', body: JSON.stringify(body) });
+        }
+
+        async function apiPut(path, body) {
+            return api(path, { method: 'PUT', body: JSON.stringify(body) });
+        }
+
+        async function apiDelete(path) {
+            return api(path, { method: 'DELETE' });
+        }
 
         // ========== 管理员入口 ==========
         function onTitleClick() {
@@ -472,261 +628,107 @@
             titleClickTimer = setTimeout(() => { titleClickCount = 0; }, 2000);
         }
 
-        function enterAdmin() {
+        async function enterAdmin() {
+            if (adminToken) {
+                // 已有 token，直接尝试进入
+                isAdmin = true;
+                showAdminUI();
+                renderContent();
+                return;
+            }
             const pw = prompt('请输入管理密码：');
-            if (pw !== ADMIN_PASSWORD) { showToast('密码错误'); return; }
-            isAdmin = true;
+            if (!pw) return;
+            try {
+                const data = await apiPost('/api/auth', { password: pw });
+                adminToken = data.token;
+                localStorage.setItem(STORAGE_ADMIN, adminToken);
+                isAdmin = true;
+                showAdminUI();
+                renderContent();
+                showToast('已进入管理模式');
+            } catch (e) {
+                showToast('密码错误');
+            }
+        }
+
+        function showAdminUI() {
             document.getElementById('adminBadge').classList.add('show');
             document.getElementById('btnManage').classList.add('show');
             document.getElementById('btnAdd').classList.add('show');
-            document.getElementById('btnExport').classList.add('show');
             document.getElementById('btnExit').classList.add('show');
-            showToast('已进入管理模式（连点标题5次可退出）');
-            renderContent();
         }
 
         function exitAdmin() {
             isAdmin = false;
+            adminToken = '';
+            localStorage.removeItem(STORAGE_ADMIN);
             document.getElementById('adminBadge').classList.remove('show');
             document.getElementById('btnManage').classList.remove('show');
             document.getElementById('btnAdd').classList.remove('show');
-            document.getElementById('btnExport').classList.remove('show');
             document.getElementById('btnExit').classList.remove('show');
-            if (dataDirty) {
-                document.getElementById('exportTip').classList.add('show');
-            }
             showToast('已退出管理模式');
             renderContent();
         }
 
-        // ========== 数据持久化 ==========
-        function saveAll() {
-            const data = { categories, dishes, today: todayList };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-            dataDirty = true;
-            if (isAdmin) {
-                document.getElementById('exportTip').classList.add('show');
-            }
-        }
-
+        // ========== 数据加载 ==========
         async function loadAll() {
-            // 1. 先从 data.json 加载菜品和分类
-            await loadFromJson();
-
-            // 2. 如果 data.json 加载失败，尝试从 localStorage 加载
-            if (categories.length === 0 && dishes.length === 0) {
-                const local = localStorage.getItem(STORAGE_KEY);
-                if (local) {
-                    try {
-                        const data = JSON.parse(local);
-                        categories = data.categories || [];
-                        dishes = data.dishes || [];
-                        if (categories.length > 0) currentCategory = categories[0];
-                    } catch (e) { /* ignore */ }
-                }
-            }
-
-            // 3. todayList 优先从 localStorage 恢复（因为 data.json 的 today 始终为空）
-            const savedToday = localStorage.getItem('today_list');
-            if (savedToday !== null) {
-                try { todayList = JSON.parse(savedToday); } catch (e) {}
-            } else {
-                // localStorage 没有才从 orders.json 加载（首次使用）
-                await loadTodayFromOrders();
-            }
-
-            // 4. 购物车从独立 key 加载
-            cart = JSON.parse(localStorage.getItem('cart') || '{}');
-            Object.keys(cart).forEach(id => {
-                if (!dishes.find(d => d.id === parseInt(id))) delete cart[id];
-            });
-            localStorage.setItem('cart', JSON.stringify(cart));
-
-            if (categories.length > 0 && !currentCategory) currentCategory = categories[0];
-        }
-
-        async function loadTodayFromOrders() {
             try {
-                const resp = await fetch('orders.json?t=' + Date.now());
-                if (!resp.ok) return;
-                const orders = await resp.json();
-                // 从最近的订单中提取 todayList
-                const ids = new Set();
-                orders.forEach(o => {
-                    (o.items || []).forEach(item => {
-                        const d = dishes.find(x => x.name === item.name);
-                        if (d) ids.add(d.id);
-                    });
-                });
-                if (ids.size > 0) {
-                    todayList = [...ids];
-                    localStorage.setItem('today_list', JSON.stringify(todayList));
+                // 并行加载分类、菜品、今日安排
+                const [cats, allDishes, today] = await Promise.all([
+                    apiGet('/api/categories'),
+                    apiGet('/api/dishes'),
+                    apiGet('/api/today').catch(() => []),
+                ]);
+                categories = cats;
+                dishes = allDishes;
+                todayList = today;
+                if (categories.length > 0 && !currentCategoryId) {
+                    currentCategoryId = categories[0].id;
                 }
-            } catch (e) { /* ignore */ }
-        }
-
-        // ========== 定时轮询：从 GitHub 拉取最新订单 ==========
-        function startPolling() {
-            stopPolling();
-            pollTimer = setInterval(pollOrders, POLL_INTERVAL);
-            // 启动后先拉一次
-            pollOrders();
-            updateSyncStatus();
-        }
-
-        function stopPolling() {
-            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-        }
-
-        async function pollOrders() {
-            if (!GITHUB_TOKEN) {
-                updateSyncStatus('未配置Token，无法同步');
-                return;
-            }
-            try {
-                updateSyncStatus('同步中...', true);
-                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${ORDERS_FILE}`;
-                const resp = await fetch(url, {
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` },
-                    cache: 'no-store'
-                });
-                if (!resp.ok) {
-                    if (resp.status === 401 || resp.status === 403) {
-                        updateSyncStatus('Token失效，需重新设置');
-                        stopPolling();
-                    } else {
-                        updateSyncStatus('同步失败(' + resp.status + ')');
-                    }
-                    return;
-                }
-                const file = await resp.json();
-                const orders = JSON.parse(decodeURIComponent(escape(atob(file.content))));
-
-                // 对比本地 orders，找出新订单
-                const localOrders = JSON.parse(localStorage.getItem('orders') || '[]');
-                const localTimestamps = new Set(localOrders.map(o => o.timestamp));
-                const newOrders = orders.filter(o => !localTimestamps.has(o.timestamp));
-
-                if (newOrders.length > 0) {
-                    // 合并新订单到本地
-                    const merged = [...localOrders];
-                    newOrders.forEach(o => merged.push(o));
-                    // 去重并按时间排序
-                    const unique = [];
-                    const seen = new Set();
-                    merged.sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
-                    merged.forEach(o => {
-                        if (!seen.has(o.timestamp)) { seen.add(o.timestamp); unique.push(o); }
-                    });
-                    localStorage.setItem('orders', JSON.stringify(unique));
-
-                    // 更新 todayList：把新订单中的菜品加入
-                    let updated = false;
-                    newOrders.forEach(o => {
-                        (o.items || []).forEach(item => {
-                            const d = dishes.find(x => x.name === item.name);
-                            if (d && !todayList.includes(d.id)) {
-                                todayList.push(d.id);
-                                updated = true;
-                            }
-                        });
-                    });
-                    if (updated) {
-                        localStorage.setItem('today_list', JSON.stringify(todayList));
-                    }
-
-                    // 弹 toast 提醒
-                    const lastNew = newOrders[newOrders.length - 1];
-                    const itemNames = (lastNew.items || []).map(i => i.name).join('、');
-                    showToast(`🔔 新订单！${lastNew.time}：${itemNames}`, 5000);
-                    lastOrderTimestamp = lastNew.timestamp;
-
-                    // 如果正在看"今日安排"，刷新页面
-                    if (currentTab === 'today') renderContent();
-                }
-
-                lastSyncTime = new Date();
                 updateSyncStatus();
             } catch (e) {
-                updateSyncStatus('同步异常');
-                console.error('轮询订单失败:', e);
+                console.error('加载失败:', e);
+                updateSyncStatus('连接失败，下拉刷新重试');
             }
+
+            // 恢复购物车
+            try {
+                cart = JSON.parse(localStorage.getItem(STORAGE_CART) || '{}');
+                // 清理无效菜品
+                const dishIds = new Set(dishes.map(d => d.id));
+                Object.keys(cart).forEach(id => {
+                    if (!dishIds.has(parseInt(id))) delete cart[id];
+                });
+                saveCart();
+            } catch (e) { cart = {}; }
         }
 
-        function updateSyncStatus(msg, syncing) {
+        async function manualRefresh() {
+            showToast('刷新中...');
+            await loadAll();
+            renderSidebar();
+            renderContent();
+            updateCartBadge();
+            showToast('已刷新');
+        }
+
+        function updateSyncStatus(msg) {
             const el = document.getElementById('syncStatus');
             if (!el) return;
-            if (syncing) {
-                el.textContent = msg || '同步中...';
-                el.classList.add('syncing');
-                return;
-            }
-            el.classList.remove('syncing');
             if (msg) {
                 el.textContent = msg;
-            } else if (lastSyncTime) {
-                const t = lastSyncTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                el.textContent = `最后同步：${t}`;
-            } else if (!GITHUB_TOKEN) {
-                el.textContent = '给糖小宝准备的菜单~';
+                el.classList.remove('syncing');
             } else {
                 el.textContent = '给糖小宝准备的菜单~';
+                el.classList.remove('syncing');
             }
-        }
-
-        // 手动刷新订单（点击同步状态文字触发）
-        function manualSync() {
-            if (!GITHUB_TOKEN) {
-                const t = prompt('请输入 GitHub Token 以启用同步：');
-                if (t) {
-                    GITHUB_TOKEN = t.trim();
-                    localStorage.setItem('github_token', GITHUB_TOKEN);
-                    startPolling();
-                }
-                return;
-            }
-            pollOrders();
-            showToast('正在同步...');
-        }
-
-        async function loadFromJson() {
-            try {
-                const resp = await fetch('data.json?t=' + Date.now());
-                if (!resp.ok) return;
-                const data = await resp.json();
-                categories = data.categories || [];
-                dishes = data.dishes || [];
-                todayList = data.today || [];
-                if (categories.length > 0) currentCategory = categories[0];
-                // 缓存到 localStorage
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-                dataDirty = false;
-                document.getElementById('exportTip').classList.remove('show');
-            } catch (e) {
-                console.error('加载 data.json 失败:', e);
-            }
-        }
-
-        // ========== 导出数据（下载 data.json 文件）==========
-        function exportData() {
-            const data = { categories, dishes, today: todayList };
-            const jsonStr = JSON.stringify(data, null, 2);
-            const blob = new Blob([jsonStr], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'data.json';
-            a.click();
-            URL.revokeObjectURL(url);
-            dataDirty = false;
-            document.getElementById('exportTip').classList.remove('show');
-            showToast('data.json 已下载，请替换本地文件后 git push');
         }
 
         // ========== 渲染 ==========
         function renderSidebar() {
-            document.getElementById('sidebar').innerHTML = categories.map(c =>
-                `<div class="category ${c === currentCategory ? 'active' : ''}" onclick="selectCategory('${c}')">${c}</div>`
+            const sidebar = document.getElementById('sidebar');
+            sidebar.innerHTML = categories.map(c =>
+                `<div class="category ${c.id === currentCategoryId ? 'active' : ''}" onclick="selectCategory(${c.id})">${c.name}</div>`
             ).join('');
         }
 
@@ -734,16 +736,21 @@
             const content = document.getElementById('content');
             if (currentTab === 'today') return renderToday(content);
 
-            const filtered = dishes.filter(d => d.category === currentCategory);
+            const filtered = dishes.filter(d => d.category_id === currentCategoryId);
             if (filtered.length === 0) {
-                content.innerHTML = '<div class="empty">该分类暂无菜品~</div>';
+                content.innerHTML = '<div class="empty"><div class="empty-icon">🍳</div>该分类暂无菜品~</div>';
                 return;
             }
-            content.innerHTML = `<div class="dish-list">${filtered.map(d => `
+            content.innerHTML = `<div class="dish-list">${filtered.map(d => {
+                const imgHtml = d.image
+                    ? `<img class="dish-img" src="${escHtml(d.image)}" alt="${escHtml(d.name)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`
+                    : '';
+                const placeholderHtml = `<div class="dish-img-placeholder" style="${d.image ? 'display:none' : ''}">🍽️</div>`;
+                return `
                 <div class="dish-card">
-                    <img class="dish-img" src="${d.image || 'https://placehold.co/80x80/eee/ccc?text=' + encodeURIComponent(d.name.slice(0,2))}" alt="${d.name}" onerror="this.src='https://placehold.co/80x80/eee/ccc?text=菜'">
+                    ${imgHtml}${placeholderHtml}
                     <div class="dish-info">
-                        <div class="dish-name">${d.name}</div>
+                        <div class="dish-name">${escHtml(d.name)}</div>
                         <div class="dish-sales">已点 ${d.sales || 0} 次</div>
                     </div>
                     <div class="dish-action">
@@ -754,31 +761,38 @@
                         ${cart[d.id] ? `<button class="btn-minus" onclick="updateCart(${d.id},-1)">−</button><span class="count">${cart[d.id]}</span>` : ''}
                         <button class="btn-add" onclick="updateCart(${d.id},1)">+</button>
                     </div>
-                </div>
-            `).join('')}</div>`;
-        }
-
-        function renderToday(content) {
-            if (todayList.length === 0) {
-                content.innerHTML = '<div class="empty">今天还没点菜哦~</div>';
-                return;
-            }
-            content.innerHTML = `<div class="dish-list">${todayList.map(id => {
-                const d = dishes.find(x => x.id === id);
-                if (!d) return '';
-                return `<div class="dish-card">
-                    <img class="dish-img" src="${d.image || 'https://placehold.co/80x80/eee/ccc?text=' + encodeURIComponent(d.name.slice(0,2))}" alt="${d.name}" onerror="this.src='https://placehold.co/80x80/eee/ccc?text=菜'">
-                    <div class="dish-info">
-                        <div class="dish-name">${d.name}</div>
-                        <div class="dish-sales">${d.category}</div>
-                    </div>
-                    <button class="admin-btn btn-del show" onclick="removeToday(${id})" style="width:24px;height:24px;">✕</button>
                 </div>`;
             }).join('')}</div>`;
         }
 
-        function selectCategory(cat) {
-            currentCategory = cat;
+        function renderToday(content) {
+            if (todayList.length === 0) {
+                content.innerHTML = '<div class="empty"><div class="empty-icon">📋</div>今天还没点菜哦~</div>';
+                return;
+            }
+            content.innerHTML = `<div class="dish-list">${todayList.map(t => {
+                const imgHtml = t.image
+                    ? `<img class="dish-img" src="${escHtml(t.image)}" alt="${escHtml(t.name)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`
+                    : '';
+                const placeholderHtml = `<div class="dish-img-placeholder" style="${t.image ? 'display:none' : ''}">🍽️</div>`;
+                return `<div class="dish-card">
+                    ${imgHtml}${placeholderHtml}
+                    <div class="dish-info">
+                        <div class="dish-name">${escHtml(t.name)}</div>
+                        <div class="dish-sales">${escHtml(t.category || '')} · 已点${t.sales || 0}次</div>
+                    </div>
+                    <button class="admin-btn btn-del show" onclick="removeToday(${t.dish_id})" style="width:28px;height:28px;">✕</button>
+                </div>`;
+            }).join('')}</div>`;
+        }
+
+        function escHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        function selectCategory(catId) {
+            currentCategoryId = catId;
             renderSidebar();
             renderContent();
         }
@@ -791,7 +805,7 @@
             renderContent();
         }
 
-        // ========== 菜品增删改（存 localStorage，刷新不丢）==========
+        // ========== 菜品增删改 ==========
         function openAdd() {
             if (!isAdmin) return;
             editingDishId = null;
@@ -821,18 +835,23 @@
                 preview.style.display = 'none';
             }
             initCategorySelect();
-            document.getElementById('dishCategory').value = d.category;
+            document.getElementById('dishCategory').value = d.category_id;
             openModal('addModal');
         }
 
         async function deleteDish(id) {
             if (!isAdmin) return;
-            showConfirm('确定删除这个菜品吗？', () => {
-                dishes = dishes.filter(d => d.id !== id);
-                todayList = todayList.filter(t => t !== id);
-                saveAll();
-                showToast('删除成功！请记得导出 data.json 并 git push');
-                renderContent();
+            const d = dishes.find(x => x.id === id);
+            showConfirm(`确定删除"${d ? d.name : '菜品'}"？`, async () => {
+                try {
+                    await apiDelete(`/api/dishes/${id}`);
+                    await loadAll();
+                    showToast('删除成功');
+                    renderSidebar();
+                    renderContent();
+                } catch (e) {
+                    showToast('删除失败: ' + e.message);
+                }
             });
         }
 
@@ -848,45 +867,41 @@
             }
         }
 
-        function saveDish() {
+        async function saveDish() {
             if (!isAdmin) return;
             const nameEl = document.getElementById('dishName');
             const catEl = document.getElementById('dishCategory');
             const imgEl = document.getElementById('dishImage');
             const fileInput = document.getElementById('dishImageFile');
 
-            if (!nameEl || !catEl) { showToast('表单加载异常，请关闭重试'); return; }
+            if (!nameEl || !catEl) { showToast('表单加载异常'); return; }
 
             const name = nameEl.value.trim();
-            const category = catEl.value;
+            const category_id = parseInt(catEl.value);
             const imageUrl = imgEl ? imgEl.value.trim() : '';
 
             if (!name) { showToast('请输入菜品名称'); return; }
+            if (!category_id) { showToast('请选择分类'); return; }
 
-            function doSave(finalImage) {
-                if (editingDishId) {
-                    const idx = dishes.findIndex(d => d.id === editingDishId);
-                    if (idx >= 0) {
-                        dishes[idx].name = name;
-                        dishes[idx].category = category;
-                        if (finalImage) dishes[idx].image = finalImage;
+            async function doSave(finalImage) {
+                try {
+                    if (editingDishId) {
+                        const body = { name, category_id };
+                        if (finalImage) body.image = finalImage;
+                        await apiPut(`/api/dishes/${editingDishId}`, body);
+                    } else {
+                        await apiPost('/api/dishes', { name, category_id, image: finalImage || '' });
                     }
-                } else {
-                    dishes.push({
-                        id: Date.now(),
-                        name,
-                        category,
-                        image: finalImage || '',
-                        sales: 0
-                    });
+                    closeModal('addModal');
+                    editingDishId = null;
+                    await loadAll();
+                    currentCategoryId = category_id;
+                    renderSidebar();
+                    renderContent();
+                    showToast('保存成功');
+                } catch (e) {
+                    showToast('保存失败: ' + e.message);
                 }
-                saveAll();
-                closeModal('addModal');
-                editingDishId = null;
-                currentCategory = category;
-                renderSidebar();
-                renderContent();
-                showToast('保存成功！请记得导出 data.json 并 git push');
             }
 
             if (fileInput && fileInput.files && fileInput.files[0]) {
@@ -901,7 +916,9 @@
 
         function initCategorySelect() {
             const select = document.getElementById('dishCategory');
-            select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+            select.innerHTML = categories.map(c =>
+                `<option value="${c.id}">${c.name}</option>`
+            ).join('');
         }
 
         // ========== 分类管理 ==========
@@ -915,14 +932,14 @@
                 <div class="modal-box">
                     <div class="modal-title">管理分类</div>
                     <div style="display:flex;gap:8px;margin-bottom:12px;">
-                        <input type="text" id="newCatName" placeholder="新分类名称" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;">
-                        <button class="btn primary" onclick="addCategory()" style="flex:none;padding:10px 16px;border-radius:8px;">添加</button>
+                        <input type="text" id="newCatName" placeholder="新分类名称" style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg);outline:none;">
+                        <button class="btn primary" onclick="addCategory()" style="flex:none;padding:10px 16px;border-radius:10px;">添加</button>
                     </div>
-                    <div style="max-height:300px;overflow-y:auto;">
+                    <div style="max-height:280px;overflow-y:auto;">
                         ${categories.map(c => `
-                            <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">
-                                <span style="flex:1;font-size:14px;">${c}</span>
-                                <button onclick="removeCategory('${c}')" style="width:22px;height:22px;border-radius:50%;border:none;background:#ff6b6b;color:#fff;cursor:pointer;">✕</button>
+                            <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+                                <span style="flex:1;font-size:14px;color:var(--text);">${c.name}</span>
+                                <button onclick="removeCategory(${c.id})" style="width:26px;height:26px;border-radius:50%;border:none;background:var(--danger);color:#fff;cursor:pointer;font-size:14px;">✕</button>
                             </div>
                         `).join('')}
                         ${categories.length === 0 ? '<div class="empty">暂无分类</div>' : ''}
@@ -940,31 +957,39 @@
             if (m) m.remove();
         }
 
-        function addCategory() {
+        async function addCategory() {
             const input = document.getElementById('newCatName');
             const name = input.value.trim();
             if (!name) return;
-            if (categories.includes(name)) { showToast('分类已存在'); return; }
-            categories.push(name);
-            saveAll();
-            showToast('分类已添加');
-            renderSidebar();
-            initCategorySelect();
-            input.value = '';
-            closeManage();
-            openManage();
+            try {
+                await apiPost('/api/categories', { name });
+                await loadAll();
+                showToast('分类已添加');
+                renderSidebar();
+                initCategorySelect();
+                input.value = '';
+                closeManage();
+                openManage(); // 刷新分类管理弹窗
+            } catch (e) {
+                showToast('添加失败: ' + e.message);
+            }
         }
 
-        function removeCategory(name) {
-            showConfirm(`确定删除分类"${name}"？`, () => {
-                categories = categories.filter(c => c !== name);
-                saveAll();
-                showToast('分类已删除');
-                if (currentCategory === name) currentCategory = categories[0] || '';
-                renderSidebar();
-                renderContent();
-                closeManage();
-                openManage();
+        async function removeCategory(id) {
+            const cat = categories.find(c => c.id === id);
+            showConfirm(`确定删除分类"${cat ? cat.name : ''}"？\n该分类下的所有菜品也会被删除。`, async () => {
+                try {
+                    await apiDelete(`/api/categories/${id}`);
+                    await loadAll();
+                    showToast('分类已删除');
+                    if (currentCategoryId === id) currentCategoryId = categories[0]?.id || null;
+                    renderSidebar();
+                    renderContent();
+                    closeManage();
+                    openManage();
+                } catch (e) {
+                    showToast('删除失败: ' + e.message);
+                }
             });
         }
 
@@ -973,9 +998,13 @@
             if (!cart[id]) cart[id] = 0;
             cart[id] += delta;
             if (cart[id] <= 0) delete cart[id];
-            localStorage.setItem('cart', JSON.stringify(cart));
+            saveCart();
             updateCartBadge();
             renderContent();
+        }
+
+        function saveCart() {
+            localStorage.setItem(STORAGE_CART, JSON.stringify(cart));
         }
 
         function updateCartBadge() {
@@ -989,11 +1018,15 @@
             }
         }
 
-        function removeToday(id) {
-            todayList = todayList.filter(t => t !== id);
-            localStorage.setItem('today_list', JSON.stringify(todayList));
-            saveAll();
-            renderContent();
+        async function removeToday(dishId) {
+            try {
+                await apiDelete(`/api/today/${dishId}`);
+                await loadAll();
+                renderContent();
+                showToast('已移除');
+            } catch (e) {
+                showToast('移除失败: ' + e.message);
+            }
         }
 
         function randomPick() {
@@ -1016,7 +1049,7 @@
                     const d = dishes.find(x => x.id === parseInt(id));
                     if (!d) return '';
                     return `<div class="cart-item">
-                        <span class="cart-item-name">${d.name}</span>
+                        <span class="cart-item-name">${escHtml(d.name)}</span>
                         <span class="cart-item-count">x${cart[id]}</span>
                         <button class="btn-minus" onclick="updateCart(${id},-1);openCart();">−</button>
                         <button class="btn-add" onclick="updateCart(${id},1);openCart();">+</button>
@@ -1030,81 +1063,33 @@
             const ids = Object.keys(cart).map(Number);
             if (ids.length === 0) { closeModal('cartModal'); return; }
 
-            todayList = [...new Set([...todayList, ...ids])];
-            localStorage.setItem('today_list', JSON.stringify(todayList));
-            saveAll();
+            const btn = document.getElementById('btnConfirmOrder');
+            btn.disabled = true;
+            btn.textContent = '下单中...';
 
-            const now = new Date();
-            const order = {
-                time: now.toLocaleString('zh-CN'),
-                timestamp: now.toISOString(),
-                items: ids.map(id => {
-                    const d = dishes.find(x => x.id === id);
-                    return { name: d ? d.name : '未知', qty: cart[id] || 1 };
-                })
-            };
-
-            // 订单也存 localStorage
-            const orders = JSON.parse(localStorage.getItem('orders') || '[]');
-            orders.push(order);
-            localStorage.setItem('orders', JSON.stringify(orders));
-
-            cart = {};
-            localStorage.setItem('cart', JSON.stringify(cart));
-            updateCartBadge();
-            closeModal('cartModal');
-            renderContent();
-
-            // 尝试同步订单到 GitHub
-            const ok = await saveOrderToGitHub(order);
-            if (ok) {
-                lastOrderTimestamp = order.timestamp;
-                lastSyncTime = new Date();
-                updateSyncStatus();
-            }
-            showToast(ok ? '下单成功！' : '下单成功（本地保存）');
-        }
-
-        async function saveOrderToGitHub(order) {
-            if (!GITHUB_TOKEN) {
-                const t = prompt('首次下单需设置 Token（微信已发你）：');
-                if (t) {
-                    GITHUB_TOKEN = t.trim();
-                    localStorage.setItem('github_token', GITHUB_TOKEN);
-                } else return false;
-            }
             try {
-                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${ORDERS_FILE}`;
-                let orders = [], sha = null;
-                const getResp = await fetch(url, {
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
-                });
-                if (getResp.ok) {
-                    const f = await getResp.json();
-                    sha = f.sha;
-                    orders = JSON.parse(decodeURIComponent(escape(atob(f.content))));
-                }
-                orders.push(order);
-                const jsonStr = JSON.stringify(orders, null, 2);
-                const b64 = btoa(unescape(encodeURIComponent(jsonStr)));
-                const body = { message: '新订单', content: b64 };
-                if (sha) body.sha = sha;
-                const putResp = await fetch(url, {
-                    method: 'PUT',
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                if (!putResp.ok) {
-                    if (putResp.status === 401 || putResp.status === 403) {
-                        localStorage.removeItem('github_token'); GITHUB_TOKEN = '';
-                    }
-                    return false;
-                }
-                return true;
-            } catch (e) { return false; }
+                const items = ids.map(id => ({
+                    dish_id: id,
+                    qty: cart[id] || 1,
+                }));
+                await apiPost('/api/orders', { items });
+
+                cart = {};
+                saveCart();
+                updateCartBadge();
+                closeModal('cartModal');
+                await loadAll();
+                renderContent();
+                showToast('下单成功！');
+            } catch (e) {
+                showToast('下单失败: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '确定下单';
+            }
         }
 
-        // ========== Toast ==========
+        // ========== Toast & Confirm ==========
         let toastTimer;
         function showConfirm(msg, onConfirm) {
             const old = document.getElementById('confirmModal');
@@ -1112,10 +1097,10 @@
             const html = `
                 <div class="modal show" id="confirmModal" onclick="if(event.target===this){document.getElementById('confirmModal').remove();}">
                     <div class="modal-box" style="max-width:280px;text-align:center;">
-                        <div style="padding:20px 0;font-size:15px;color:#333;">${msg}</div>
-                        <div class="modal-actions" style="justify-content:center;gap:16px;">
-                            <button class="btn" onclick="document.getElementById('confirmModal').remove();" style="padding:8px 24px;">取消</button>
-                            <button class="btn primary" id="confirmBtn" style="padding:8px 24px;">确定</button>
+                        <div style="padding:16px 0;font-size:14px;color:var(--text);white-space:pre-line;line-height:1.6;">${msg}</div>
+                        <div class="modal-actions" style="justify-content:center;gap:12px;">
+                            <button class="btn" onclick="document.getElementById('confirmModal').remove();" style="padding:8px 24px;flex:none;">取消</button>
+                            <button class="btn primary" id="confirmBtn" style="padding:8px 24px;flex:none;">确定</button>
                         </div>
                     </div>
                 </div>`;
@@ -1132,25 +1117,36 @@
             const t = document.createElement('div');
             t.id = 'toast'; t.className = 'toast'; t.textContent = msg;
             document.body.appendChild(t);
-            toastTimer = setTimeout(() => t.remove(), 3000);
+            toastTimer = setTimeout(() => t.remove(), 2500);
         }
 
         // ========== 启动 ==========
         async function init() {
+            // 首次使用提示设置 API 地址
+            if (!localStorage.getItem('api_base')) {
+                const url = prompt('请输入API地址（Cloudflare Workers 域名）：\n例如: https://sifangcai-api.xxx.workers.dev\n\n之后可在页面点击标题下方文字修改', '');
+                if (url) {
+                    localStorage.setItem('api_base', url.trim().replace(/\/+$/, ''));
+                    location.reload();
+                    return;
+                }
+            }
+
+            document.getElementById('content').innerHTML = '<div class="empty"><span class="loading-spinner"></span>加载中...</div>';
+
+            // 如果之前是管理员，尝试恢复
+            if (adminToken) {
+                isAdmin = true;
+                showAdminUI();
+            }
+
             await loadAll();
             if (categories.length === 0 && dishes.length === 0) {
-                document.getElementById('content').innerHTML = '<div class="empty">加载失败，请下拉刷新页面重试</div>';
-            }
-            // 记录本地已有订单的最新时间戳
-            const localOrders = JSON.parse(localStorage.getItem('orders') || '[]');
-            if (localOrders.length > 0) {
-                lastOrderTimestamp = localOrders[localOrders.length - 1].timestamp || '';
+                document.getElementById('content').innerHTML = '<div class="empty"><div class="empty-icon">📡</div>暂无数据<br><small style="color:var(--text-muted);">请确认API地址正确，或下拉刷新</small></div>';
             }
             renderSidebar();
             renderContent();
             updateCartBadge();
-            // 启动定时轮询
-            startPolling();
         }
         init();
     </script>
