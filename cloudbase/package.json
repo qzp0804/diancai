@@ -1,0 +1,12 @@
+{
+  "name": "diancai-miniapp",
+  "version": "3.0.0",
+  "description": "私房菜点单小程序 - EdgeOne Pages + CloudBase 版",
+  "scripts": {
+    "deploy:cloudbase": "cloudbase framework deploy",
+    "deploy:pages": "echo '请通过 EdgeOne Pages 控制台上传 index.html 和 image/ 目录'"
+  },
+  "dependencies": {
+    "@cloudbase/node-sdk": "^3.18.3"
+  }
+}

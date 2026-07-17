@@ -85,7 +85,14 @@
             margin-top: 1px;
             transition: color 0.3s;
         }
-        .title-area p.syncing { color: var(--primary); }
+        #syncStatus {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-top: 2px;
+            transition: color 0.3s;
+        }
+        #syncStatus.syncing { color: var(--primary); }
         .admin-badge {
             display: none;
             background: var(--primary);
@@ -500,7 +507,7 @@
                 <div class="avatar">🐰</div>
                 <div class="title-area" onclick="onTitleClick()">
                     <h1>老大的私房菜单<span class="admin-badge" id="adminBadge">管理</span></h1>
-                    <p id="syncStatus" onclick="manualRefresh()" style="cursor:pointer;" title="点击刷新数据">给糖小宝准备的菜单~</p>
+                    <div id="syncStatus" onclick="manualRefresh(event)" title="点击刷新数据">给糖小宝准备的菜单~</div>
                 </div>
                 <div class="header-actions">
                     <button class="btn-sm" id="btnManage" onclick="openManage()">分类</button>
@@ -572,8 +579,7 @@
     </div>
 
     <script>
-        // ========== 配置 ==========
-        const API_BASE = localStorage.getItem('api_base') || 'https://sifangcai-api.1247540213.workers.dev';
+
         const STORAGE_ADMIN = 'admin_token';
         const STORAGE_CART = 'cart';
         let adminToken = localStorage.getItem(STORAGE_ADMIN) || '';
@@ -590,31 +596,24 @@
         let titleClickCount = 0;
         let titleClickTimer = null;
 
-        // ========== API 封装 ==========
-        async function api(path, options = {}) {
+        // ========== API 封装（通过 HTTP 访问服务直接调用） ==========
+        const API_BASE = 'https://allen-0804-d9go2lxk541ca2e67.service.tcloudbase.com';
+
+        async function callApi(method, path, body) {
             const headers = { 'Content-Type': 'application/json' };
-            if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
-            const resp = await fetch(API_BASE + path, { headers, ...options });
-            const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || '请求失败');
+            if (adminToken) headers['Authorization'] = 'Bearer ' + adminToken;
+            const opts = { method, headers };
+            if (body) opts.body = JSON.stringify(body);
+            const res = await fetch(API_BASE + path, opts);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || '请求失败(' + res.status + ')');
             return data;
         }
 
-        async function apiGet(path) {
-            return api(path);
-        }
-
-        async function apiPost(path, body) {
-            return api(path, { method: 'POST', body: JSON.stringify(body) });
-        }
-
-        async function apiPut(path, body) {
-            return api(path, { method: 'PUT', body: JSON.stringify(body) });
-        }
-
-        async function apiDelete(path) {
-            return api(path, { method: 'DELETE' });
-        }
+        async function apiGet(path) { return callApi('GET', path); }
+        async function apiPost(path, body) { return callApi('POST', path, body); }
+        async function apiPut(path, body) { return callApi('PUT', path, body); }
+        async function apiDelete(path) { return callApi('DELETE', path); }
 
         // ========== 管理员入口 ==========
         function onTitleClick() {
@@ -671,30 +670,87 @@
         }
 
         // ========== 数据加载 ==========
-        async function loadAll() {
+        const STORAGE_CACHE = 'local_cache';
+        const STORAGE_CACHE_TIME = 'local_cache_time';
+        const CACHE_TTL = 5 * 60 * 1000; // 本地缓存有效期 5 分钟
+
+        function getCached() {
             try {
-                // 并行加载分类、菜品、今日安排
-                const [cats, allDishes, today] = await Promise.all([
-                    apiGet('/api/categories'),
-                    apiGet('/api/dishes'),
-                    apiGet('/api/today').catch(() => []),
-                ]);
-                categories = cats;
-                dishes = allDishes;
-                todayList = today;
+                const raw = localStorage.getItem(STORAGE_CACHE);
+                const ts = parseInt(localStorage.getItem(STORAGE_CACHE_TIME) || '0');
+                if (raw && (Date.now() - ts < CACHE_TTL)) {
+                    return JSON.parse(raw);
+                }
+            } catch (e) { /* ignore */ }
+            return null;
+        }
+
+        function setCache(data) {
+            try {
+                localStorage.setItem(STORAGE_CACHE, JSON.stringify(data));
+                localStorage.setItem(STORAGE_CACHE_TIME, Date.now().toString());
+            } catch (e) { /* ignore */ }
+        }
+
+        async function loadAll(forceRemote = false) {
+            // 先从缓存加载，让页面秒开
+            const cached = getCached();
+            if (cached && !forceRemote) {
+                categories = cached.categories || [];
+                dishes = cached.dishes || [];
+                todayList = cached.today || [];
                 if (categories.length > 0 && !currentCategoryId) {
                     currentCategoryId = categories[0].id;
                 }
+                restoreCart();
                 updateSyncStatus();
-            } catch (e) {
-                console.error('加载失败:', e);
-                updateSyncStatus('连接失败，下拉刷新重试');
+                // 后台静默拉取最新数据
+                fetchRemote(true);
+                return;
             }
 
-            // 恢复购物车
+            // 强制远程加载
+            await fetchRemote(false);
+        }
+
+        async function fetchRemote(silent) {
+            try {
+                console.log('[fetchRemote] 开始远程加载...');
+                const data = await apiGet('/api/all');
+                console.log('[fetchRemote] 数据:', data ? 'OK' : 'NULL', data ? Object.keys(data) : '');
+                if (data && data.categories) {
+                    categories = data.categories;
+                    dishes = data.dishes || [];
+                    todayList = data.today || [];
+                    setCache(data);
+                    if (categories.length > 0 && !currentCategoryId) {
+                        currentCategoryId = categories[0].id;
+                    }
+                    if (!silent) updateSyncStatus('已同步最新数据');
+                    console.log('[fetchRemote] 加载成功: ' + categories.length + '分类, ' + dishes.length + '菜品');
+                } else {
+                    console.warn('[fetchRemote] 数据格式异常:', JSON.stringify(data).substring(0, 200));
+                    if (!silent) updateSyncStatus('数据格式异常');
+                }
+            } catch (e) {
+                console.error('[fetchRemote] 远程加载失败:', e.message, e.stack);
+                // 如果有缓存就用缓存
+                const cached = getCached();
+                if (cached) {
+                    categories = cached.categories || [];
+                    dishes = cached.dishes || [];
+                    todayList = cached.today || [];
+                    if (!silent) updateSyncStatus('已加载缓存数据');
+                } else {
+                    if (!silent) updateSyncStatus('连接失败: ' + e.message);
+                }
+            }
+            restoreCart();
+        }
+
+        function restoreCart() {
             try {
                 cart = JSON.parse(localStorage.getItem(STORAGE_CART) || '{}');
-                // 清理无效菜品
                 const dishIds = new Set(dishes.map(d => d.id));
                 Object.keys(cart).forEach(id => {
                     if (!dishIds.has(parseInt(id))) delete cart[id];
@@ -703,21 +759,33 @@
             } catch (e) { cart = {}; }
         }
 
-        async function manualRefresh() {
+        function updateLocalCache() {
+            try {
+                setCache({ categories, dishes, today: todayList });
+            } catch (e) { /* ignore */ }
+        }
+
+        async function manualRefresh(ev) {
+            if (ev) ev.stopPropagation();
             showToast('刷新中...');
-            await loadAll();
+            await loadAll(true); // 强制远程
             renderSidebar();
             renderContent();
             updateCartBadge();
             showToast('已刷新');
         }
 
-        function updateSyncStatus(msg) {
+        let syncStatusTimer = null;
+        function updateSyncStatus(msg, autoReset = true) {
             const el = document.getElementById('syncStatus');
             if (!el) return;
             if (msg) {
                 el.textContent = msg;
-                el.classList.remove('syncing');
+                el.classList.add('syncing');
+                if (autoReset) {
+                    clearTimeout(syncStatusTimer);
+                    syncStatusTimer = setTimeout(() => updateSyncStatus('', false), 2500);
+                }
             } else {
                 el.textContent = '给糖小宝准备的菜单~';
                 el.classList.remove('syncing');
@@ -843,13 +911,22 @@
             if (!isAdmin) return;
             const d = dishes.find(x => x.id === id);
             showConfirm(`确定删除"${d ? d.name : '菜品'}"？`, async () => {
+                // 乐观更新：先从本地移除
+                const backup = dishes.slice();
+                dishes = dishes.filter(x => x.id !== id);
+                updateLocalCache();
+                renderSidebar();
+                renderContent();
+
                 try {
                     await apiDelete(`/api/dishes/${id}`);
-                    await loadAll();
                     showToast('删除成功');
+                } catch (e) {
+                    // 回滚
+                    dishes = backup;
+                    updateLocalCache();
                     renderSidebar();
                     renderContent();
-                } catch (e) {
                     showToast('删除失败: ' + e.message);
                 }
             });
@@ -884,6 +961,27 @@
             if (!category_id) { showToast('请选择分类'); return; }
 
             async function doSave(finalImage) {
+                const backupDishes = dishes.slice();
+                const backupCategories = categories.slice();
+
+                // 乐观更新本地数据
+                if (editingDishId) {
+                    const idx = dishes.findIndex(x => x.id === editingDishId);
+                    if (idx >= 0) {
+                        dishes[idx] = { ...dishes[idx], name, category_id, image: finalImage || dishes[idx].image };
+                    }
+                } else {
+                    // 临时添加到本地列表
+                    const tempId = -Date.now();
+                    const cat = categories.find(c => c.id === category_id);
+                    dishes.push({ id: tempId, name, category_id, category: cat ? cat.name : '', image: finalImage || '', sales: 0 });
+                }
+                updateLocalCache();
+                closeModal('addModal');
+                currentCategoryId = category_id;
+                renderSidebar();
+                renderContent();
+
                 try {
                     if (editingDishId) {
                         const body = { name, category_id };
@@ -892,14 +990,19 @@
                     } else {
                         await apiPost('/api/dishes', { name, category_id, image: finalImage || '' });
                     }
-                    closeModal('addModal');
                     editingDishId = null;
-                    await loadAll();
-                    currentCategoryId = category_id;
+                    // 从远程拉最新数据
+                    await fetchRemote(true);
                     renderSidebar();
                     renderContent();
                     showToast('保存成功');
                 } catch (e) {
+                    // 回滚
+                    dishes = backupDishes;
+                    categories = backupCategories;
+                    updateLocalCache();
+                    renderSidebar();
+                    renderContent();
                     showToast('保存失败: ' + e.message);
                 }
             }
@@ -922,6 +1025,8 @@
         }
 
         // ========== 分类管理 ==========
+        let editingCatId = null;
+
         function openManage() {
             if (!isAdmin) return;
             const old = document.getElementById('manageModal');
@@ -933,13 +1038,14 @@
                     <div class="modal-title">管理分类</div>
                     <div style="display:flex;gap:8px;margin-bottom:12px;">
                         <input type="text" id="newCatName" placeholder="新分类名称" style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg);outline:none;">
-                        <button class="btn primary" onclick="addCategory()" style="flex:none;padding:10px 16px;border-radius:10px;">添加</button>
+                        <button class="btn primary" id="catSubmitBtn" onclick="addCategory()" style="flex:none;padding:10px 16px;border-radius:10px;">添加</button>
                     </div>
                     <div style="max-height:280px;overflow-y:auto;">
                         ${categories.map(c => `
                             <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
                                 <span style="flex:1;font-size:14px;color:var(--text);">${c.name}</span>
-                                <button onclick="removeCategory(${c.id})" style="width:26px;height:26px;border-radius:50%;border:none;background:var(--danger);color:#fff;cursor:pointer;font-size:14px;">✕</button>
+                                <button onclick="startEditCategory(${c.id})" style="width:26px;height:26px;border-radius:6px;border:none;background:var(--primary);color:#fff;cursor:pointer;font-size:12px;margin-right:6px;" title="编辑">✎</button>
+                                <button onclick="removeCategory(${c.id})" style="width:26px;height:26px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-size:14px;" title="删除">✕</button>
                             </div>
                         `).join('')}
                         ${categories.length === 0 ? '<div class="empty">暂无分类</div>' : ''}
@@ -955,39 +1061,103 @@
         function closeManage() {
             const m = document.getElementById('manageModal');
             if (m) m.remove();
+            editingCatId = null;
+        }
+
+        function startEditCategory(id) {
+            editingCatId = id;
+            const cat = categories.find(c => c.id === id);
+            const input = document.getElementById('newCatName');
+            const btn = document.getElementById('catSubmitBtn');
+            if (input && cat) {
+                input.value = cat.name;
+                input.focus();
+                btn.textContent = '保存';
+                btn.onclick = function() { submitCategory(); };
+            }
+        }
+
+        async function submitCategory() {
+            const input = document.getElementById('newCatName');
+            const name = input.value.trim();
+            if (!name) return;
+            if (editingCatId) {
+                await updateCategory(editingCatId, name);
+            } else {
+                await addCategory();
+            }
         }
 
         async function addCategory() {
             const input = document.getElementById('newCatName');
             const name = input.value.trim();
             if (!name) return;
+
+            const backup = categories.slice();
+            const tempId = -Date.now();
+            categories.push({ id: tempId, name });
+            renderSidebar();
+            initCategorySelect();
+            input.value = '';
+
             try {
                 await apiPost('/api/categories', { name });
-                await loadAll();
-                showToast('分类已添加');
+                await fetchRemote(true);
                 renderSidebar();
                 initCategorySelect();
-                input.value = '';
+                showToast('分类已添加');
                 closeManage();
-                openManage(); // 刷新分类管理弹窗
+                openManage();
             } catch (e) {
+                categories = backup;
+                renderSidebar();
                 showToast('添加失败: ' + e.message);
+            }
+        }
+
+        async function updateCategory(id, name) {
+            const cat = categories.find(c => c.id === id);
+            const oldName = cat ? cat.name : '';
+            cat.name = name;
+            renderSidebar();
+            closeManage();
+            try {
+                await apiPut('/api/categories/' + id, { name });
+                showToast('分类已更新');
+            } catch (e) {
+                cat.name = oldName;
+                renderSidebar();
+                showToast('更新失败: ' + e.message);
             }
         }
 
         async function removeCategory(id) {
             const cat = categories.find(c => c.id === id);
             showConfirm(`确定删除分类"${cat ? cat.name : ''}"？\n该分类下的所有菜品也会被删除。`, async () => {
+                const backupCategories = categories.slice();
+                const backupDishes = dishes.slice();
+                categories = categories.filter(c => c.id !== id);
+                dishes = dishes.filter(d => d.category_id !== id);
+                updateLocalCache();
+                if (currentCategoryId === id) currentCategoryId = categories[0]?.id || null;
+                renderSidebar();
+                renderContent();
+                closeManage();
+
                 try {
                     await apiDelete(`/api/categories/${id}`);
-                    await loadAll();
-                    showToast('分类已删除');
+                    await fetchRemote(true);
                     if (currentCategoryId === id) currentCategoryId = categories[0]?.id || null;
                     renderSidebar();
                     renderContent();
-                    closeManage();
+                    showToast('分类已删除');
                     openManage();
                 } catch (e) {
+                    categories = backupCategories;
+                    dishes = backupDishes;
+                    updateLocalCache();
+                    renderSidebar();
+                    renderContent();
                     showToast('删除失败: ' + e.message);
                 }
             });
@@ -1019,12 +1189,18 @@
         }
 
         async function removeToday(dishId) {
+            const backup = todayList.slice();
+            todayList = todayList.filter(t => t.dish_id !== dishId);
+            updateLocalCache();
+            renderContent();
+
             try {
                 await apiDelete(`/api/today/${dishId}`);
-                await loadAll();
-                renderContent();
                 showToast('已移除');
             } catch (e) {
+                todayList = backup;
+                updateLocalCache();
+                renderContent();
                 showToast('移除失败: ' + e.message);
             }
         }
@@ -1067,21 +1243,38 @@
             btn.disabled = true;
             btn.textContent = '下单中...';
 
-            try {
-                const items = ids.map(id => ({
-                    dish_id: id,
-                    qty: cart[id] || 1,
-                }));
-                await apiPost('/api/orders', { items });
+            const backupCart = { ...cart };
+            const items = ids.map(id => ({ dish_id: id, qty: cart[id] || 1 }));
 
-                cart = {};
-                saveCart();
-                updateCartBadge();
-                closeModal('cartModal');
-                await loadAll();
+            // 乐观更新：清空购物车、更新销量
+            cart = {};
+            saveCart();
+            updateCartBadge();
+            closeModal('cartModal');
+            // 乐观更新销量和今日安排
+            items.forEach(item => {
+                const d = dishes.find(x => x.id === item.dish_id);
+                if (d) d.sales = (d.sales || 0) + item.qty;
+                if (!todayList.find(t => t.dish_id === item.dish_id)) {
+                    const dish = dishes.find(x => x.id === item.dish_id);
+                    if (dish) todayList.push({ dish_id: item.dish_id, name: dish.name, image: dish.image, category: dish.category, sales: dish.sales });
+                }
+            });
+            updateLocalCache();
+            renderContent();
+
+            try {
+                await apiPost('/api/orders', { items });
+                await fetchRemote(true);
                 renderContent();
                 showToast('下单成功！');
             } catch (e) {
+                // 回滚购物车
+                cart = backupCart;
+                saveCart();
+                updateCartBadge();
+                await fetchRemote(true);
+                renderContent();
                 showToast('下单失败: ' + e.message);
             } finally {
                 btn.disabled = false;
@@ -1122,31 +1315,36 @@
 
         // ========== 启动 ==========
         async function init() {
-            // 首次使用提示设置 API 地址
-            if (!localStorage.getItem('api_base')) {
-                const url = prompt('请输入API地址（Cloudflare Workers 域名）：\n例如: https://sifangcai-api.xxx.workers.dev\n\n之后可在页面点击标题下方文字修改', '');
-                if (url) {
-                    localStorage.setItem('api_base', url.trim().replace(/\/+$/, ''));
-                    location.reload();
-                    return;
-                }
-            }
-
             document.getElementById('content').innerHTML = '<div class="empty"><span class="loading-spinner"></span>加载中...</div>';
 
+            // 等待匿名登录完成
             // 如果之前是管理员，尝试恢复
             if (adminToken) {
                 isAdmin = true;
                 showAdminUI();
             }
 
-            await loadAll();
+            // 清除旧缓存，确保首次加载从远程获取
+            localStorage.removeItem(STORAGE_CACHE);
+            localStorage.removeItem(STORAGE_CACHE_TIME);
+
+            // 直接通过 HTTP 加载（不再需要 CloudBase SDK 登录）
+            await fetchRemote(false);
+
             if (categories.length === 0 && dishes.length === 0) {
-                document.getElementById('content').innerHTML = '<div class="empty"><div class="empty-icon">📡</div>暂无数据<br><small style="color:var(--text-muted);">请确认API地址正确，或下拉刷新</small></div>';
+                document.getElementById('content').innerHTML = '<div class="empty"><div class="empty-icon">📡</div>暂无数据<br><small style="color:var(--text-muted);">点击下方刷新按钮重试</small></div>';
             }
             renderSidebar();
             renderContent();
             updateCartBadge();
+
+            // 每30秒后台静默拉取最新数据
+            setInterval(async () => {
+                await fetchRemote(true);
+                renderSidebar();
+                renderContent();
+                updateCartBadge();
+            }, 30000);
         }
         init();
     </script>
